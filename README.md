@@ -125,7 +125,7 @@ dsh plugin --profile desktop add dsh-work-desk
 ```bash
 npm install
 npm run watch                # 改 client/ 自动重打包
-npm test                     # 68 个 Host 用例
+npm test                     # 69 个 Host 用例
 node scripts/live-check.mjs  # 真网联调（会访问腾讯行情）
 npm run build                # 产出 dist/client.js
 ```

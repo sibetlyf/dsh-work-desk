@@ -105,6 +105,18 @@ test('状态工具：今天的会 + 未读 + 行情一句话', async () => {
   assert.equal(result.quotes[0].name, '贵州茅台')
 })
 
+test('list 回执里必须带 id，模型才能定位要改的那一条', async () => {
+  const { tools, state } = harness()
+  const tasks = await tools.get('work_desk_task').execute({ action: 'list' })
+  const first = state.tasks.find(task => !task.done)
+  assert.ok(tasks.receipt.includes(first.id), '待办回执里应该有 id')
+  const events = await tools.get('work_desk_calendar').execute({ action: 'list', days: 7 })
+  assert.ok(events.events.length > 0)
+  assert.ok(events.receipt.includes(events.events[0].id), '日程回执里应该有 id')
+  const mails = await tools.get('work_desk_mail').execute({ action: 'list', limit: 3 })
+  assert.ok(mails.receipt.includes(state.mails[0].id), '邮件回执里应该有 id')
+})
+
 test('dispose 之后工具被摘掉', () => {
   const { tools, dispose } = harness()
   assert.equal(tools.size, 5)

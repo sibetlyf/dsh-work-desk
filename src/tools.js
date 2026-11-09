@@ -117,7 +117,12 @@ export function registerTools(ctx, desk) {
           .filter(event => event.status !== 'cancelled' && new Date(event.end ?? event.start) >= now && new Date(event.start) <= addDays(now, days))
           .sort((a, b) => new Date(a.start) - new Date(b.start))
           .map(eventRow)
-        return { receipt: rows.length ? `接下来 ${days} 天有 ${rows.length} 个日程` : `接下来 ${days} 天没有日程`, events: rows }
+        // 回执照抄 id：模型改/删要用它定位；只给条数的话它会另起一条重复的
+        const lines = rows.map(row => `- ${row.id} ${new Date(row.start).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })} ${row.title}`)
+        return {
+          receipt: rows.length ? `接下来 ${days} 天有 ${rows.length} 个日程：\n${lines.join('\n')}` : `接下来 ${days} 天没有日程`,
+          events: rows,
+        }
       }
       let op
       if (action === 'add') {
@@ -160,7 +165,8 @@ export function registerTools(ctx, desk) {
       if (action === 'list') {
         const state = await desk.store.read()
         const rows = state.tasks.filter(row => !row.done).map(taskRow)
-        return { receipt: rows.length ? `还有 ${rows.length} 条待办` : '待办清空了', tasks: rows }
+        const lines = rows.map(row => `- ${row.id} ${row.title}${row.due ? `（${new Date(row.due).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}）` : ''}`)
+        return { receipt: rows.length ? `还有 ${rows.length} 条待办：\n${lines.join('\n')}` : '待办清空了', tasks: rows }
       }
       const op = action === 'add'
         ? { op: 'add_task', title: args?.title, due: args?.due ?? null, priority: Number(args?.priority) || 0 }
@@ -200,7 +206,8 @@ export function registerTools(ctx, desk) {
       const alerts = evaluateAlerts(state, quotes, now)
       const head = [`今天 ${events.length} 个会`, `${tasks.length} 条未完成待办`, `${unread} 封未读`].join('，')
       const lines = [head]
-      for (const event of events) lines.push(`· ${fmtTime(event.start)} ${event.title}`)
+      for (const event of events) lines.push(`· ${event.id} ${fmtTime(event.start)} ${event.title}`)
+      if (tasks.length) lines.push(`待办：${tasks.map(task => `${task.id} ${task.title}`).join('；')}`)
       if (quoteRows.length) lines.push(`行情：${quoteRows.map(row => `${row.name} ${row.price}（${row.changePct >= 0 ? '+' : ''}${Number(row.changePct).toFixed(2)}%）`).join('，')}`)
       if (alerts.length) lines.push(`提醒：${alerts.map(alert => alert.text).join('；')}`)
       return { today: lines.join('\n'), events, tasks, unread, quotes: quoteRows, alerts }
@@ -250,7 +257,8 @@ export function registerTools(ctx, desk) {
           rows = synced.messages
         }
         const picked = rows.slice(0, limit)
-        return { receipt: picked.length ? `最近 ${picked.length} 封邮件` : '收件箱是空的', mails: picked.map(brief) }
+        const lines = picked.map(mail => `- ${mail.id} ${mail.from?.name || mail.from?.address}：${mail.subject}${mail.unread ? '（未读）' : ''}`)
+        return { receipt: picked.length ? `最近 ${picked.length} 封邮件：\n${lines.join('\n')}` : '收件箱是空的', mails: picked.map(brief) }
       }
 
       if (action === 'read') {
