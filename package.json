@@ -34,6 +34,15 @@
     "stocks"
   ],
   "license": "MIT",
+  "author": "sibetlyf",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sibetlyf/dsh-work-desk.git"
+  },
+  "homepage": "https://github.com/sibetlyf/dsh-work-desk#readme",
+  "bugs": {
+    "url": "https://github.com/sibetlyf/dsh-work-desk/issues"
+  },
   "scripts": {
     "build": "node scripts/build.mjs",
     "watch": "node scripts/build.mjs --watch",
