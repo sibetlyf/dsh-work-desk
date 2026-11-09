@@ -87,7 +87,8 @@ export async function loadDesk() {
       mail: data.mail ?? {},
     })
     const settings = await request('settings').catch(() => null)
-    if (settings) setDesk({ settings })
+    // 内容没变就不换引用：设置弹窗依赖这个对象，引用一变就会重灌表单
+    if (settings && JSON.stringify(settings) !== JSON.stringify(snapshot.settings)) setDesk({ settings })
   } catch (err) {
     setDesk({ ready: false, error: err.message })
   }

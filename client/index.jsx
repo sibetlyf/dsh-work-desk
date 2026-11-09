@@ -60,8 +60,8 @@ function Shell(props) {
   React.useEffect(() => {
     loadDesk()
     const stopTicker = startTicker()
-    // DSH 对话里的 Agent 也能改工作台，这里勤一点拉，切回来时立刻拉一次
-    const reload = setInterval(() => loadDesk(), 15_000)
+    // DSH 对话里的 Agent 也能改工作台；30 秒一轮，页面不可见时不拉，避免看着像一直在刷新
+    const reload = setInterval(() => { if (document.visibilityState === 'visible') loadDesk() }, 30_000)
     const onVisible = () => { if (document.visibilityState === 'visible') loadDesk() }
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('focus', onVisible)

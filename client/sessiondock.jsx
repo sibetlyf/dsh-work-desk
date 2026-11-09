@@ -5,6 +5,7 @@ import { getRootCtx, setDesk } from './desk.js'
 import { Icon, IconButton } from './ui.jsx'
 
 const EMPTY_SNAPSHOT = { running: false, openState: 'cold' }
+const EMPTY_LIST = { ids: [], byId: {}, phase: 'empty', projectionsBySession: {} }
 
 function textOf(blocks) {
   return (blocks ?? [])
@@ -67,7 +68,13 @@ export function looksActionable(text) {
 }
 
 export function SessionDock({ useSessions, head }) {
-  const list = useSessions(state => state)
+  // 直接订 sessions.list 这个 SnapshotStore：用 useSessions(state => state) 会拿到
+  // 每次调用都新建的对象，React 认为快照一直在变，于是无限重渲染——看起来就是"一直在刷新"。
+  const listStore = React.useMemo(() => getRootCtx()?.get?.('sessions')?.list ?? null, [])
+  const list = React.useSyncExternalStore(
+    React.useCallback(callback => (listStore ? listStore.subscribe(callback) : () => {}), [listStore]),
+    React.useCallback(() => (listStore ? listStore.getSnapshot() : EMPTY_LIST), [listStore]),
+  )
   const [picked, setPicked] = React.useState(null)
   const [binding, setBinding] = React.useState(null)
   const [entries, setEntries] = React.useState([])

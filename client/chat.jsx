@@ -133,7 +133,8 @@ function LocalChat() {
  * 没有时退回独立助手，功能不至于消失。
  */
 export function ChatDock({ useSessions }) {
-  const canMirror = Boolean(useSessions) && typeof getRootCtx()?.get?.('sessions')?.retain === 'function'
+  const sessions = getRootCtx()?.get?.('sessions')
+  const canMirror = Boolean(sessions?.retain) && Boolean(sessions?.list)
   if (canMirror) {
     return (
       <aside className="wd-dock" aria-label="DSH 会话">

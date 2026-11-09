@@ -26,8 +26,13 @@ export function SettingsDialog() {
   const [test, setTest] = React.useState(null)
   const [testing, setTesting] = React.useState(false)
 
+  const opened = React.useRef(false)
   React.useEffect(() => {
-    if (!open || !settings) return
+    if (!open) { opened.current = false; return }
+    // 只在「打开设置」这一刻灌一次表单：面板每 15 秒会重拉 state，
+    // 如果每次都重灌，测试连接的返回和正在填的字段都会被打回去。
+    if (!settings || opened.current) return
+    opened.current = true
     setForm({
       provider: settings.mail.provider,
       account: settings.mail.account ?? '',
