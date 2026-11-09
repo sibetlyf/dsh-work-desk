@@ -38,10 +38,13 @@ const LIST = {
   ],
 }
 
-test('检测：缺工具、PTC 执行器、没有 tools 服务都判为不可用', () => {
+test('检测：缺工具、没有 tools 服务不可用；PTC 执行器仍可用（execute 按名字派发）', () => {
   assert.equal(emailTool({ get: () => undefined }), null)
-  assert.equal(emailTool(fakeCtx({ ptc: true })), null)
   assert.equal(emailTool(fakeCtx({ missing: ['email_read'] })), null)
+  // PTC 执行器的 describe() 只公布 run_code，但工具本身在册，照样可以调
+  const ptc = emailTool(fakeCtx({ ptc: true }))
+  assert.ok(ptc)
+  assert.ok(ptc.names.email_list)
   const ok = emailTool(fakeCtx())
   assert.ok(ok)
   assert.ok(ok.names.email_draft)

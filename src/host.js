@@ -474,7 +474,12 @@ export default {
     })
     settings.read().then(saved => setAssistantModel(saved.assistant)).catch(() => {})
     // 已经装了 dsh-email 并配好账号时直接用它，不再让用户填一遍 IMAP
-    preferDshMail(ctx, settings).catch(() => {})
+    // 插件加载顺序不一定保证 tools 已就绪，所以隔几秒再重试几次
+    ctx.effect(() => {
+      preferDshMail(ctx, settings).catch(() => {})
+      const timers = [3000, 10000, 30000].map(delay => setTimeout(() => preferDshMail(ctx, settings).catch(() => {}), delay))
+      return () => { for (const timer of timers) clearTimeout(timer) }
+    }, 'dsh-work-desk: mail autodetect')
     // 把工作台注册成宿主工具：DSH 对话里的 Agent 可以直接加日程、记待办、读状态
     ctx.effect(() => registerTools(ctx, desk), 'dsh-work-desk: agent tools')
     ctx.effect(() => {

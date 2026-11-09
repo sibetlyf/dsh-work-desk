@@ -16,18 +16,17 @@ const DEFAULT_FOLDER = 'INBOX'
 export function emailTool(ctx) {
   if (typeof ctx?.get !== 'function') return null
   const tools = ctx.get('tools')
-  if (typeof tools?.executable !== 'function' || typeof tools?.execute !== 'function' || typeof tools?.selectExecutor !== 'function') return null
+  if (typeof tools?.execute !== 'function' || typeof tools?.executable !== 'function') return null
   try {
-    const executor = tools.selectExecutor()
-    if (typeof executor?.describe !== 'function') return null
     const names = {}
     for (const name of [...NEEDED, ...OPTIONAL]) {
       const definition = tools.executable(name)
-      if (!definition) continue
-      // 默认执行器必须声明可以直接调用这个工具
-      if (executor.describe([definition])?.schemas?.some(schema => schema.name === name)) names[name] = definition
+      if (definition) names[name] = definition
     }
-    return NEEDED.every(name => names[name]) ? { tools, names } : null
+    if (!NEEDED.every(name => names[name])) return null
+    // 不再要求默认执行器在 describe() 里公布这些工具：PTC 执行器只公布 run_code，
+    // 但 tools.execute 仍然按名字派发。真派发不了时会在 execute 阶段报出来。
+    return { tools, names }
   } catch {
     // 执行器卸载/不可用时不影响 demo 和自建 IMAP
     return null

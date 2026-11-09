@@ -42,7 +42,8 @@ export class Settings {
 
   async read() {
     try {
-      const saved = JSON.parse(await readFile(this.file, 'utf8'))
+      // 有人会用带 BOM 的编辑器改这个文件，JSON.parse 不认 BOM
+      const saved = JSON.parse((await readFile(this.file, 'utf8')).replace(/^\uFEFF/, ''))
       this.value = {
         ...DEFAULTS, ...saved,
         mail: {

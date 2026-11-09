@@ -3,7 +3,7 @@
 import { applyOps } from './ops.js'
 import { addDays, eventsOnDay, fmtTime } from './calendar.js'
 import { evaluateAlerts } from './sync.js'
-import { draftVia, emailTool, listMail, markMailVia, readMailVia } from './mail/dshmail.js'
+import { draftVia, emailTool, listMail, markMailVia, readMailVia, rowOf } from './mail/dshmail.js'
 import { markMail, readMail } from './mail/service.js'
 import { normalizeCode } from './quotes.js'
 import { snippetOf } from './mail/mime.js'
@@ -224,7 +224,7 @@ export function registerTools(ctx, desk) {
     parameters: {
       type: 'object',
       properties: {
-        action: { type: 'string', enum: ['list', 'read', 'mark', 'draft'], description: '要做什么' },
+        action: { type: 'string', enum: ['list', 'read', 'mark', 'draft', 'sync'], description: '要做什么；sync 从邮箱拉最新' },
         id: { type: 'string', description: 'read/mark 时的邮件 id' },
         mark: { type: 'string', enum: ['read', 'unread', 'star', 'unstar'], description: 'mark 时改什么' },
         unreadOnly: { type: 'boolean', description: 'list 只看未读' },
@@ -248,6 +248,19 @@ export function registerTools(ctx, desk) {
       const state = await desk.store.read()
       const action = String(args?.action ?? '')
       const brief = mail => ({ id: mail.id, from: mail.from?.name || mail.from?.address, subject: mail.subject, date: mail.date, unread: Boolean(mail.unread), starred: Boolean(mail.starred) })
+
+      if (action === 'sync') {
+        if (!emailTool(ctx)) throw new Error('没有可用的邮件插件；请在 设置 → 邮件 里选择来源')
+        const result = await listMail({ ctx, settings }, { limit: 40 })
+        const rows = result.messages.map(message => rowOf(message, { account: result.account, folder: result.folder }))
+        await desk.store.mutate('同步邮件', draft => {
+          const index = new Map(draft.mails.map(row => [row.id, row]))
+          for (const row of rows) index.set(row.id, { ...(index.get(row.id) ?? {}), ...row })
+          draft.mails = [...index.values()].sort((a, b) => Date.parse(b.date) - Date.parse(a.date))
+          return draft
+        })
+        return { receipt: `同步了 ${rows.length} 封（账号 ${result.account || '未知'}）`, mails: rows.slice(0, 8).map(brief) }
+      }
 
       if (action === 'list') {
         const limit = Math.max(1, Math.min(20, Number(args?.limit) || 8))
