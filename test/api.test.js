@@ -104,7 +104,8 @@ test('工作台接口冒烟', async t => {
     assert.equal(body.state.events.length, 0)
     assert.equal(body.state.mails.length, 0)
     assert.equal(body.state.tasks.length, 0)
-    assert.equal(body.mail.provider, 'demo')
+    // 这个测试环境提供了 email_* 工具，所以来源会自动认成 dsh-email
+    assert.equal(body.mail.provider, 'dsh-email')
     assert.ok(Array.isArray(body.alerts))
     assert.equal(body.canUndo, false)
   })

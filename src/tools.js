@@ -244,7 +244,7 @@ export function registerTools(ctx, desk) {
     timeoutMs: 30_000,
     async execute(args) {
       const settings = await desk.settings.read()
-      const provider = settings.mail?.provider ?? 'demo'
+      const provider = settings.mail?.provider === 'demo' && emailTool(ctx) ? 'dsh-email' : (settings.mail?.provider ?? 'demo')
       const state = await desk.store.read()
       const action = String(args?.action ?? '')
       const brief = mail => ({ id: mail.id, from: mail.from?.name || mail.from?.address, subject: mail.subject, date: mail.date, unread: Boolean(mail.unread), starred: Boolean(mail.starred) })

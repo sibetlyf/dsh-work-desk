@@ -132,6 +132,8 @@ export function mailConfigured(settings) {
 
 /** dsh-email 是否真的可用，由 host 用工具探测后传进来。 */
 export function mailReady(settings, pluginAvailable = false) {
+  // 有 dsh-email 就认为邮件是可用的，哪怕用户没显式选过来源
+  if (pluginAvailable && (settings.mail?.provider ?? 'demo') === 'demo') return true
   if (settings.mail?.provider === 'dsh-email') return pluginAvailable
   return mailConfigured(settings)
 }

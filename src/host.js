@@ -64,6 +64,8 @@ async function statePayload(ctx, desk) {
   }
   const settings = await desk.settings.read()
   const plugin = Boolean(emailTool(ctx))
+  // 装了 dsh-email 就直接当邮件来源：不让用户再选一次
+  const provider = settings.mail?.provider === 'demo' && plugin ? 'dsh-email' : (settings.mail?.provider ?? 'demo')
   return {
     state,
     quotes: snap.quotes,
@@ -75,10 +77,10 @@ async function statePayload(ctx, desk) {
     modelOk: modelStatus.ok,
     modelError: modelStatus.error,
     mail: {
-      configured: mailConfigured(settings),
+      configured: mailConfigured(settings) || plugin,
       ready: mailReady(settings, plugin),
-      provider: settings.mail?.provider ?? 'demo',
-      account: settings.mail?.account ?? '',
+      provider,
+      account: settings.mail?.account || (plugin ? 'dsh-email 默认账号' : ''),
       address: settings.mail?.address ?? '',
       pluginAvailable: plugin,
       pluginDraft: plugin && Boolean(emailTool(ctx)?.names.email_draft),
@@ -142,8 +144,18 @@ async function chatTurn(ctx, desk, body) {
  * 邮件来源分发：dsh-email 走宿主工具，imap 走自建客户端。
  * 两条路都把结果写进同一份 state.mails，界面不用关心信是从哪来的。
  */
+/**
+ * 装了 dsh-email 就直接把它当邮件来源，不让用户再选一次。
+ * 用户显式选过 imap 时以用户的为准。
+ */
+function effectiveProvider(ctx, settings) {
+  const saved = settings?.mail?.provider ?? 'demo'
+  if (saved !== 'demo') return saved
+  return emailTool(ctx) ? 'dsh-email' : 'demo'
+}
+
 async function syncMailbox(ctx, store, settings) {
-  const provider = settings.mail?.provider ?? 'demo'
+  const provider = effectiveProvider(ctx, settings)
   if (provider === 'dsh-email') {
     const { messages, account } = await listMail({ ctx, settings }, { limit: 40 })
     const result = await store.mutate('同步邮件', draft => {
@@ -169,7 +181,7 @@ async function syncMailbox(ctx, store, settings) {
 }
 
 async function readMailbox(ctx, store, settings, id) {
-  if ((settings.mail?.provider ?? 'demo') !== 'dsh-email') return readMail({ store, settings, id })
+  if (effectiveProvider(ctx, settings) !== 'dsh-email') return readMail({ store, settings, id })
   const state = await store.read()
   const mail = state.mails.find(row => row.id === id)
   if (!mail) throw new Error('找不到这封邮件')
@@ -192,7 +204,7 @@ async function readMailbox(ctx, store, settings, id) {
 }
 
 async function markMailbox(ctx, store, settings, id, action) {
-  if ((settings.mail?.provider ?? 'demo') !== 'dsh-email') return markMail({ store, settings, id, action })
+  if (effectiveProvider(ctx, settings) !== 'dsh-email') return markMail({ store, settings, id, action })
   const state = await store.read()
   const mail = state.mails.find(row => row.id === id)
   if (!mail) throw new Error('找不到这封邮件')
@@ -246,7 +258,7 @@ async function route(ctx, desk, req, res) {
     }
     if (path === 'mail/folders') {
       const settings = await desk.settings.read()
-      if ((settings.mail?.provider ?? 'demo') !== 'dsh-email') return json(res, 200, { folders: [] })
+      if (effectiveProvider(ctx, settings) !== 'dsh-email') return json(res, 200, { folders: [] })
       try {
         return json(res, 200, await foldersVia(ctx, { account: settings.mail?.account || '' }))
       } catch (err) {
@@ -315,7 +327,7 @@ async function route(ctx, desk, req, res) {
     case 'mail/draft': {
       // 只在 dsh-email 模式下用：写进它的草稿箱，发送由人在 DSH 里确认
       const settings = await desk.settings.read()
-      if ((settings.mail?.provider ?? 'demo') !== 'dsh-email') return json(res, 400, { error: '当前不是 DSH 邮件插件模式' })
+      if (effectiveProvider(ctx, settings) !== 'dsh-email') return json(res, 400, { error: '当前不是 DSH 邮件插件模式' })
       const state = await desk.store.read()
       const parent = body.replyToId ? state.mails.find(row => row.id === body.replyToId) : null
       if (!String(body.to ?? '').trim() || !String(body.subject ?? '').trim()) return json(res, 400, { error: '收件人和主题都要填' })
@@ -335,7 +347,7 @@ async function route(ctx, desk, req, res) {
     }
     case 'mail/send': {
       const settings = await desk.settings.read()
-      if ((settings.mail?.provider ?? 'demo') === 'dsh-email') {
+      if (effectiveProvider(ctx, settings) === 'dsh-email') {
         return json(res, 400, { error: '当前用 DSH 邮件插件收信：发送要在它的草稿里确认，工作台只写草稿' })
       }
       const draft = {
@@ -467,7 +479,7 @@ export default {
       board,
       syncMail: async () => {
         const current = await settings.read()
-        if ((current.mail.provider ?? 'demo') === 'demo') return { skipped: true }
+        if (effectiveProvider(ctx, current) === 'demo') return { skipped: true }
         return syncMailbox(ctx, store, current)
       },
       onError: err => { desk.lastError = err.message },
