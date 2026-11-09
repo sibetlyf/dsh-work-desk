@@ -3,6 +3,7 @@ import React from 'react'
 import { CalendarView } from './calendar.jsx'
 import { ChatDock } from './chat.jsx'
 import { loadDesk, setDesk, setRootCtx, startTicker, undo, useDesk } from './desk.js'
+import { Island } from './island.jsx'
 import { MailView } from './mail.jsx'
 import { MarketView } from './market.jsx'
 import { SettingsDialog } from './settings.jsx'
@@ -123,6 +124,7 @@ function Shell(props) {
           <IconButton icon="gear" label="设置" onClick={() => setDesk({ settingsOpen: true })} />
           {showDock ? null : <button type="button" className="wd-open-dock" onClick={() => setDesk({ dockOpen: true })}><Icon name="spark" size={14} />助手</button>}
         </header>
+        {ready ? <Island /> : null}
         <main className="wd-content" key={view}>
           {error ? (
             <div className="wd-page"><p className="wd-muted">工作台加载失败：{error}</p><button type="button" className="wd-btn" onClick={loadDesk}>重试</button></div>

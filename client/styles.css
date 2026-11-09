@@ -453,6 +453,34 @@ body[data-ds-dark-theme] .wd-root { color-scheme: dark; }
 .wd-brief { font-family: var(--serif); font-size: 13px; line-height: 22px; }
 .wd-brief h4 { font-family: var(--dsw-font-family); }
 
+/* --------------------- 灵动岛（M1 形态验证） --------------------- */
+.wd-island { position: absolute; z-index: 28; top: 10px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; max-width: min(520px, calc(100% - 500px)); pointer-events: none; }
+.wd-island > * { pointer-events: auto; }
+.wd-island-pill { display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 8px 0 14px; border-radius: 999px; background: color-mix(in srgb, var(--card) 80%, transparent); backdrop-filter: blur(28px) saturate(160%); box-shadow: var(--dsw-elevation-soft), inset 0 0 0 .5px var(--line); transition: box-shadow .25s var(--ease), transform .25s var(--ease); }
+.wd-island-pill:hover { transform: translateY(-1px); box-shadow: var(--dsw-elevation-prominent), inset 0 0 0 .5px var(--line); }
+.wd-island-live { width: 7px; height: 7px; border-radius: 50%; background: var(--down); box-shadow: 0 0 0 3px color-mix(in srgb, var(--down) 16%, transparent); animation: wd-pulse 2.4s ease-in-out infinite; flex: none; }
+.wd-island-item { display: inline-flex; align-items: baseline; gap: 5px; min-width: 0; font-size: 12px; color: var(--ink2); white-space: nowrap; }
+.wd-island-item b { font-weight: 500; color: var(--ink); }
+.wd-island-item small { max-width: 120px; overflow: hidden; text-overflow: ellipsis; color: var(--ink3); }
+.wd-island-toggle { display: inline-flex; align-items: center; gap: 3px; height: 28px; padding: 0 10px; border-radius: 999px; background: var(--hover); color: var(--ink2); font-size: 11.5px; flex: none; }
+.wd-island-toggle:hover { color: var(--ink); }
+.wd-island-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; width: 100%; animation: wd-island-in .28s var(--ease) both; }
+@keyframes wd-island-in { from { opacity: 0; transform: translateY(-6px) scale(.98); } }
+.wd-island-atom { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: var(--r-lg); background: color-mix(in srgb, var(--card) 96%, transparent); box-shadow: inset 0 0 0 .5px var(--line), 0 14px 36px -22px rgb(0 0 0 / .4); }
+.wd-island-atom header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.wd-island-atom h3 { font-size: 12.5px; font-weight: 500; letter-spacing: .05em; color: var(--ink2); }
+.wd-island-atom header span { font-size: 11px; color: var(--ink3); }
+.wd-island-atom ul { display: flex; flex-direction: column; gap: 5px; min-height: 42px; }
+.wd-island-atom li { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: 12.5px; line-height: 19px; }
+.wd-island-atom li b { font-weight: 500; white-space: nowrap; }
+.wd-island-atom li span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wd-island-atom li small { margin-left: auto; color: var(--ink3); font-size: 11px; white-space: nowrap; }
+.wd-island-atom .is-quotes li span { font-family: var(--latin-serif); font-variant-numeric: tabular-nums; }
+.wd-island-atom .is-empty { color: var(--ink3); }
+.wd-island-link { display: inline-flex; align-items: center; gap: 3px; align-self: flex-end; color: var(--accent); font-size: 11.5px; }
+.wd-root.is-narrow .wd-island { max-width: calc(100% - 140px); }
+.wd-root.is-narrow .wd-island-grid { grid-template-columns: minmax(0, 1fr); }
+
 /* --------------------- 氛围与细节（对齐 media-desk 的观感） --------------------- *//* 背景三团很淡的彩色光斑，缓慢漂移；只做氛围，不拦截点击 */
 .wd-ambient { position: absolute; inset: 0; z-index: 0; overflow: clip; pointer-events: none; }
 .wd-ambient i {
