@@ -23,14 +23,20 @@ function harness() {
     read: async () => state,
     mutate: async (_label, fn) => fn(state),
   }
-  const board = { snapshot: () => ({ quotes: { sh600519: { symbol: 'sh600519', name: '贵州茅台', price: 1444.21, changePct: -0.6 } } }) }
-  const dispose = registerTools(ctx, { store, board })
-  return { ctx, tools, state, store, board, dispose }
+  const quotes = { sh600519: { symbol: 'sh600519', name: '贵州茅台', price: 1444.21, changePct: -0.6 } }
+  const board = {
+    snapshot: () => ({ quotes }),
+    refresh: async () => ({ quotes }),
+  }
+  const settings = { read: async () => ({ mail: { provider: 'demo' } }) }
+  const dispose = registerTools(ctx, { store, board, settings })
+  return { ctx, tools, state, store, board, settings, dispose }
 }
 
-test('注册三张工具，名字都带 work_desk_ 前缀', () => {
+test('注册五张工具，名字都带 work_desk_ 前缀', () => {
   const { tools, dispose } = harness()
   assert.deepEqual([...tools.keys()].sort(), [...TOOL_NAMES].sort())
+  assert.equal(tools.size, 5)
   for (const definition of tools.values()) {
     assert.equal(typeof definition.execute, 'function')
     assert.equal(definition.parameters.type, 'object')
@@ -101,7 +107,51 @@ test('状态工具：今天的会 + 未读 + 行情一句话', async () => {
 
 test('dispose 之后工具被摘掉', () => {
   const { tools, dispose } = harness()
-  assert.equal(tools.size, 3)
+  assert.equal(tools.size, 5)
   dispose()
   assert.equal(tools.size, 0)
+})
+
+test('删除必须带 confirm，不然让 Agent 先去问用户', async () => {
+  const { tools, state } = harness()
+  const added = await tools.get('work_desk_calendar').execute({ action: 'add', title: '要删的会', start: '2026-11-12T10:00:00+08:00' })
+  const id = added.events[0].id
+  await assert.rejects(() => tools.get('work_desk_calendar').execute({ action: 'delete', id }), /确认/)
+  assert.ok(state.events.some(event => event.id === id))
+  await tools.get('work_desk_calendar').execute({ action: 'delete', id, confirm: true })
+  assert.ok(!state.events.some(event => event.id === id))
+})
+
+test('邮件工具：列最近几封、标记已读', async () => {
+  const { tools, state } = harness()
+  const listed = await tools.get('work_desk_mail').execute({ action: 'list', limit: 3 })
+  assert.equal(listed.mails.length, 3)
+  const target = state.mails[0]
+  const marked = await tools.get('work_desk_mail').execute({ action: 'mark', id: target.id, mark: 'read' })
+  assert.match(marked.receipt, /已标为已读/)
+  assert.equal(state.mails.find(mail => mail.id === target.id).unread, false)
+})
+
+test('邮件工具：读正文和写草稿，但绝不发送', async () => {
+  const { tools, state } = harness()
+  const mail = state.mails.find(row => row.unread)
+  const read = await tools.get('work_desk_mail').execute({ action: 'read', id: mail.id })
+  assert.match(read.body, /周三晚上可以|灰度名单|改版/)
+  const draft = await tools.get('work_desk_mail').execute({ action: 'draft', to: 'a@b.com', subject: 'Re: x', text: '好的', replyToId: mail.id })
+  assert.match(draft.receipt, /草稿/)
+  assert.ok(state.drafts.some(row => row.subject === 'Re: x'))
+  assert.ok(tools.get('work_desk_mail').parameters.properties.action.enum.includes('draft'))
+  assert.ok(!tools.get('work_desk_mail').parameters.properties.action.enum.includes('send'))
+})
+
+test('行情工具：报现价、加自选、记持仓', async () => {
+  const { tools, state } = harness()
+  const quote = await tools.get('work_desk_market').execute({ action: 'quote', code: '600519' })
+  assert.match(quote.receipt, /贵州茅台 1444\.21（-0\.60%）/)
+  await tools.get('work_desk_market').execute({ action: 'watch_add', code: '600036' })
+  assert.ok(state.watchlist.some(row => row.code === 'sh600036'))
+  await tools.get('work_desk_market').execute({ action: 'position_add', code: '600036', shares: 100, cost: 40 })
+  assert.ok(state.positions.some(row => row.code === 'sh600036'))
+  await tools.get('work_desk_market').execute({ action: 'position_remove', code: '600036' })
+  assert.ok(!state.positions.some(row => row.code === 'sh600036'))
 })

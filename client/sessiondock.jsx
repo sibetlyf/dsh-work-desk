@@ -36,13 +36,34 @@ export function messagesOf(entries) {
       if (text || tools.length) out.push({ id: `a${seq}`, role: 'assistant', text, tools })
     }
   }
-  return out.slice(-80)
+  return out.slice(-40)
 }
 
 function useSessionSnapshot(session) {
   const subscribe = React.useCallback(callback => (session ? session.subscribe(callback) : () => {}), [session])
   const snapshot = React.useCallback(() => (session ? session.getSnapshot() : EMPTY_SNAPSHOT), [session])
   return React.useSyncExternalStore(subscribe, snapshot)
+}
+
+/** 从地址里猜当前会话：不同版本的 DSH 用过 query / 路径 / hash 三种写法。 */
+export function sessionFromUrl() {
+  try {
+    const url = new URL(window.location.href)
+    const fromQuery = url.searchParams.get('session') || url.searchParams.get('sessionId')
+    if (fromQuery) return fromQuery
+    const match = /(?:session|chat)[/=]([A-Za-z0-9_-]{6,})/.exec(`${url.pathname}${url.hash}`)
+    return match?.[1] ?? null
+  } catch {
+    return null
+  }
+}
+
+/** 看起来像「一件可以落到工作台的事」：有日期时间线索，又有安排/待办的意思。 */
+export function looksActionable(text) {
+  if (!text) return false
+  const when = /(明天|后天|今天|周[一二三四五六日天]|下周|\d{1,2}\s*[点:：]\s*\d{0,2}|\d{1,2}\s*月\s*\d{1,2}\s*[日号])/
+  const what = /(会|安排|约|提醒|待办|截止|之前|前|记得|排期|复盘|交付)/
+  return when.test(text) && what.test(text)
 }
 
 export function SessionDock({ useSessions, head }) {
@@ -60,7 +81,10 @@ export function SessionDock({ useSessions, head }) {
     // 空会话（刚点「新会话」还没说话）排后面，默认落到真有内容的那条
     return list_.sort((a, b) => Number(a.blank ?? false) - Number(b.blank ?? false) || (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
   }, [list])
-  const sessionId = picked ?? rows[0]?.id ?? null
+  const fromUrl = React.useMemo(() => sessionFromUrl(), [])
+  const sessionId = (picked && rows.some(row => row.id === picked) ? picked : null)
+    ?? (fromUrl && rows.some(row => row.id === fromUrl) ? fromUrl : null)
+    ?? rows[0]?.id ?? null
 
   React.useEffect(() => {
     if (!sessionId) return undefined
@@ -101,13 +125,13 @@ export function SessionDock({ useSessions, head }) {
     if (scroller.current) scroller.current.scrollTo({ top: scroller.current.scrollHeight, behavior: 'smooth' })
   }, [messages.length, snapshot?.running])
 
-  const send = async () => {
-    const value = text.trim()
-    if (!value || !binding || sending) return
+  const deliver = async value => {
+    const text_ = String(value ?? '').trim()
+    if (!text_ || !binding || sending) return
     setSending(true)
-    setText('')
+    if (value === undefined) setText('')
     try {
-      const result = await binding.session.prompt([{ type: 'text', text: value }], 'queue')
+      const result = await binding.session.prompt([{ type: 'text', text: text_ }], 'queue')
       if (result && result.ok === false) setError(result.error?.message ?? '发送失败')
     } catch (err) {
       setError(err?.message ?? '发送失败')
@@ -115,6 +139,7 @@ export function SessionDock({ useSessions, head }) {
       setSending(false)
     }
   }
+  const send = () => deliver(text)
 
   return (
     <div className="wd-chat">
@@ -145,6 +170,15 @@ export function SessionDock({ useSessions, head }) {
           <div key={message.id} className={`wd-msg is-${message.role === 'user' ? 'user' : 'bot'}`}>
             {message.text ? <p>{message.text}</p> : null}
             {message.tools?.length ? <p className="wd-msg-tool"><Icon name="bolt" size={11} />{message.tools.join(' · ')}</p> : null}
+            {message.role === 'assistant' && looksActionable(message.text) ? (
+              <button
+                type="button"
+                className="wd-msg-action"
+                onClick={() => deliver(`把上面这条安排落到工作台：${message.text.slice(0, 300)}。用 work_desk_calendar 或 work_desk_task 直接加，不用再问我。`)}
+              >
+                <Icon name="plus" size={11} />落到工作台
+              </button>
+            ) : null}
           </div>
         ))}
         {snapshot?.running ? <div className="wd-msg is-bot"><span className="wd-shimmer">正在处理……</span></div> : null}

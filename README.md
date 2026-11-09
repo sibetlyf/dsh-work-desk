@@ -10,6 +10,7 @@
 
 - 在 **DSH 对话**里说「明天下午三点和设计对一下改版，40 分钟」，Agent 会调用 `work_desk_calendar` 直接写进工作台，日程页立刻多一块。
 - 在 **工作台右侧**说话，进的是同一条会话；Agent 的回复和工具调用（`work_desk_task` 之类）实时显示，工作台同步刷新。
+- 会话里聊出「明天四点半和运营过方案」这种安排时，那条回复下面会出现 **「落到工作台」**，点一下就让同一条会话去调工具落地——不用你再复述一遍。
 
 ![今日页](docs/shot-today.png)
 
@@ -124,7 +125,7 @@ dsh plugin --profile desktop add dsh-work-desk
 ```bash
 npm install
 npm run watch                # 改 client/ 自动重打包
-npm test                     # 64 个 Host 用例
+npm test                     # 68 个 Host 用例
 node scripts/live-check.mjs  # 真网联调（会访问腾讯行情）
 npm run build                # 产出 dist/client.js
 ```
