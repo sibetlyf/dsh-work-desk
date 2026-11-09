@@ -121,6 +121,13 @@ const page = await browser.newPage({ viewport: { width: 1500, height: 940 }, dev
 page.on('pageerror', err => console.log('页面报错：', err.message))
 page.on('console', msg => { if (msg.type() === 'error') console.log('console.error:', msg.text()) })
 
+// 首次打开是空工作台，截图前手动载入示例数据（和真实用户路径一致）
+await fetch(`${base}/work-desk/ops`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json', 'sec-fetch-site': 'same-origin' },
+  body: JSON.stringify({ ops: [{ op: 'load_samples' }], label: '载入示例数据' }),
+})
+
 await page.goto(base, { waitUntil: 'networkidle' })
 await page.waitForSelector('.wd-hero-line', { timeout: 20_000 })
 await page.waitForTimeout(1200)

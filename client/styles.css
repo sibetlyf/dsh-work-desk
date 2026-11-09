@@ -19,6 +19,8 @@
   --r-md: var(--dsw-radius-md, 12px);
   --r-lg: var(--dsw-radius-lg, 16px);
   --ease: cubic-bezier(.2, .8, .2, 1);
+  --serif: "Songti SC", "STSong", "Noto Serif SC", "Source Han Serif SC", Georgia, serif;
+  --latin-serif: "Iowan Old Style", "Palatino", Georgia, "Songti SC", serif;
   --dock-w: 340px;
   position: relative;
   display: flex;
@@ -158,20 +160,20 @@ body[data-ds-dark-theme] .wd-root { color-scheme: dark; }
 /* ------------------------------- 页面 ------------------------------- */
 .wd-page { position: absolute; inset: 0; overflow-y: auto; padding: 66px 22px 24px; animation: wd-rise .3s var(--ease) both; }
 .wd-page-head { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
-.wd-page-head h1 { font-size: 19px; font-weight: 500; letter-spacing: .2px; }
+.wd-page-head h1 { font-size: 26px; line-height: 34px; font-weight: 300; letter-spacing: -.01em; }
 .wd-page-sub { color: var(--ink3); font-size: 12px; line-height: 18px; margin-top: 2px; }
-.wd-card { display: flex; flex-direction: column; min-width: 0; border-radius: var(--r-lg); background: var(--card); box-shadow: inset 0 0 0 .5px var(--line); overflow: hidden; }
+.wd-card { display: flex; flex-direction: column; min-width: 0; border-radius: var(--r-lg); background: color-mix(in srgb, var(--card) 94%, transparent); box-shadow: inset 0 0 0 .5px var(--line), 0 1px 2px rgb(0 0 0 / .03); overflow: hidden; }
 .wd-card-head { flex: none; display: flex; align-items: center; gap: 6px; min-height: 42px; padding: 0 8px 0 14px; }
-.wd-card-head h2 { font-size: 13px; font-weight: 500; color: var(--ink); letter-spacing: .2px; }
+.wd-card-head h2 { font-size: 12.5px; font-weight: 500; color: var(--ink2); letter-spacing: .06em; }
 .wd-card-meta { color: var(--ink3); font-size: 11.5px; }
 .wd-card-empty { padding: 5px 14px 14px; color: var(--ink3); font-size: 12.5px; line-height: 19px; }
 
 /* 今日 */
 .wd-today { display: flex; flex-direction: column; gap: 12px; min-height: 100%; }
 .wd-hero { padding: 2px 2px 6px; }
-.wd-hero-date { color: var(--ink3); font-size: 12px; letter-spacing: .4px; }
-.wd-hero-line { margin-top: 6px; font-size: 24px; font-weight: 400; line-height: 36px; letter-spacing: .2px; }
-.wd-hero-line b { font-weight: 500; font-variant-numeric: tabular-nums; }
+.wd-hero-date { color: var(--ink3); font-size: 12px; letter-spacing: .08em; }
+.wd-hero-line { margin-top: 8px; font-size: 31px; font-weight: 300; line-height: 44px; letter-spacing: -.015em; color: var(--ink3); }
+.wd-hero-line b { font-weight: 400; color: var(--ink); font-family: var(--latin-serif); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
 .wd-hero-next { display: flex; align-items: center; gap: 6px; margin-top: 8px; color: var(--ink2); font-size: 12.5px; }
 .wd-hero-next svg { color: var(--ink3); }
 .wd-hero-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
@@ -261,15 +263,16 @@ body[data-ds-dark-theme] .wd-root { color-scheme: dark; }
 .wd-cal-gutter span:first-child { transform: none; }
 .wd-cal-col { position: relative; border-left: .5px solid var(--line); background-image: repeating-linear-gradient(to bottom, transparent 0 44px, color-mix(in srgb, var(--ink) 5%, transparent) 44px 45px); cursor: pointer; }
 .wd-cal-col.is-today { background-color: color-mix(in srgb, var(--primary) 3%, transparent); }
-.wd-cal-event { position: absolute; display: flex; flex-direction: column; gap: 0; padding: 2px 6px; margin-left: 1px; border-radius: 6px; overflow: hidden; cursor: grab; background: color-mix(in srgb, #3d6fd4 12%, var(--card)); border-left: 2px solid #3d6fd4; }
+.wd-cal-event { position: absolute; display: flex; flex-direction: column; gap: 0; padding: 2px 6px; margin-left: 1px; border-radius: 6px; overflow: hidden; cursor: grab; background: color-mix(in srgb, #3d6fd4 20%, var(--card)); border-left: 2px solid #3d6fd4; transition: box-shadow .18s var(--ease), transform .18s var(--ease); }
+.wd-cal-event:hover { transform: translateY(-1px); box-shadow: 0 6px 16px -10px rgb(0 0 0 / .45); }
 /* 会议块里的两行文字不能被 flex 压缩：矮的时候宁可裁掉时间，也要留住标题 */
 .wd-cal-event b { flex: none; font-size: 11px; font-weight: 500; line-height: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wd-cal-event span { flex: none; color: var(--ink3); font-size: 10px; line-height: 13px; font-variant-numeric: tabular-nums; }
-.wd-cal-event.tone-violet { background: color-mix(in srgb, #7a5ad6 12%, var(--card)); border-color: #7a5ad6; }
-.wd-cal-event.tone-amber { background: color-mix(in srgb, #c58a1e 14%, var(--card)); border-color: #c58a1e; }
-.wd-cal-event.tone-green { background: color-mix(in srgb, #1e8a52 12%, var(--card)); border-color: #1e8a52; }
-.wd-cal-event.tone-rose { background: color-mix(in srgb, #c34e73 12%, var(--card)); border-color: #c34e73; }
-.wd-cal-event.tone-slate { background: color-mix(in srgb, #667085 12%, var(--card)); border-color: #667085; }
+.wd-cal-event.tone-violet { background: color-mix(in srgb, #7a5ad6 20%, var(--card)); border-color: #7a5ad6; }
+.wd-cal-event.tone-amber { background: color-mix(in srgb, #c58a1e 22%, var(--card)); border-color: #c58a1e; }
+.wd-cal-event.tone-green { background: color-mix(in srgb, #1e8a52 20%, var(--card)); border-color: #1e8a52; }
+.wd-cal-event.tone-rose { background: color-mix(in srgb, #c34e73 20%, var(--card)); border-color: #c34e73; }
+.wd-cal-event.tone-slate { background: color-mix(in srgb, #667085 20%, var(--card)); border-color: #667085; }
 .wd-cal-event.is-tentative { border-style: dashed; opacity: .78; }
 .wd-cal-event.is-dragging { cursor: grabbing; z-index: 5; box-shadow: var(--dsw-elevation-prominent); opacity: .9; }
 .wd-cal-conflict { position: absolute; top: 2px; right: 3px; color: var(--up); font-size: 9px; font-style: normal; }
@@ -370,7 +373,7 @@ body[data-ds-dark-theme] .wd-root { color-scheme: dark; }
 .wd-quote-head { display: flex; align-items: flex-start; gap: 8px; padding: 12px 14px 8px; }
 .wd-quote-head h2 { font-size: 16px; font-weight: 500; }
 .wd-quote-price { text-align: right; font-variant-numeric: tabular-nums; }
-.wd-quote-price b { display: block; font-size: 22px; font-weight: 500; line-height: 28px; }
+.wd-quote-price b { display: block; font-size: 26px; font-weight: 400; line-height: 32px; font-family: var(--latin-serif); letter-spacing: -.01em; }
 .wd-quote-price small { font-size: 12px; }
 .wd-quote-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 10px; padding: 4px 14px 10px; }
 .wd-quote-grid dt { color: var(--ink3); font-size: 10.5px; }
@@ -408,8 +411,59 @@ body[data-ds-dark-theme] .wd-root { color-scheme: dark; }
 .wd-root.is-compact .wd-mail-side { display: none; }
 .wd-root.is-compact .wd-mail-list { border-right: 0; }
 .wd-root.is-compact .wd-mail-read { display: none; }
-.wd-root.is-compact .wd-hero-line { font-size: 20px; line-height: 30px; }
+.wd-root.is-compact .wd-hero-line { font-size: 24px; line-height: 34px; }
 .wd-root.is-compact .wd-nav button span { display: none; }
 @media (max-width: 1180px) {
   .wd-mail-page { grid-template-columns: 180px 300px minmax(0, 1fr); }
+}
+
+/* --------------------- 氛围与细节（对齐 media-desk 的观感） --------------------- */
+/* 背景三团很淡的彩色光斑，缓慢漂移；只做氛围，不拦截点击 */
+.wd-ambient { position: absolute; inset: 0; z-index: 0; overflow: clip; pointer-events: none; }
+.wd-ambient i {
+  position: absolute; width: 54vmax; height: 54vmax; border-radius: 50%;
+  filter: blur(76px); opacity: .68; animation: wd-drift 44s ease-in-out infinite alternate;
+}
+.wd-ambient i:nth-child(1) { left: -18vmax; top: -26vmax; background: radial-gradient(circle, color-mix(in srgb, #dbe5ff 58%, transparent), transparent 68%); }
+.wd-ambient i:nth-child(2) { right: -16vmax; top: -10vmax; background: radial-gradient(circle, color-mix(in srgb, #f7e3ef 54%, transparent), transparent 68%); animation-delay: -15s; }
+.wd-ambient i:nth-child(3) { left: 20vmax; bottom: -34vmax; background: radial-gradient(circle, color-mix(in srgb, #e3f4e1 52%, transparent), transparent 68%); animation-delay: -29s; }
+body[data-ds-dark-theme] .wd-ambient i { opacity: .26; }
+@keyframes wd-drift { to { transform: translate3d(5vmax, 3.5vmax, 0) scale(1.1); } }
+.wd-main, .wd-dock { z-index: 1; }
+
+/* 卡片轻微上浮，列表行有过渡 */
+.wd-card { transition: transform .22s var(--ease), box-shadow .22s var(--ease); }
+.wd-card:hover { transform: translateY(-1px); box-shadow: inset 0 0 0 .5px var(--line), var(--dsw-elevation-soft); }
+.wd-mail-row { transition: background .14s var(--ease), box-shadow .14s var(--ease); }
+.wd-mail-row:hover { background: var(--hover); }
+.wd-mail-row.is-unread { box-shadow: inset 2.5px 0 0 var(--primary); }
+
+/* 首屏标题后面一层很淡的主色晕 */
+.wd-hero { border-radius: var(--r-lg); background: radial-gradient(120% 92% at 6% -12%, color-mix(in srgb, var(--primary) 7%, transparent), transparent 62%); }
+
+/* 弹窗、浮层、toast 各自入场 */
+.wd-dialog-mask { animation: wd-fade .18s var(--ease) both; }
+.wd-dialog { animation: wd-pop .24s var(--ease) both; }
+@keyframes wd-pop { from { opacity: 0; transform: scale(.96) translateY(8px); } }
+.wd-toast { animation: wd-toast .22s var(--ease) both; }
+@keyframes wd-toast { from { opacity: 0; transform: translate(-50%, 10px) scale(.97); } }
+
+/* 分时线画出来；数字用等宽，涨跌不跳列 */
+.wd-spark path { stroke-dasharray: 260; stroke-dashoffset: 260; animation: wd-draw 1s var(--ease) forwards; }
+@keyframes wd-draw { to { stroke-dashoffset: 0; } }
+.wd-quote-price, .wd-card-meta, .wd-hero-line b, .wd-time { font-variant-numeric: tabular-nums; }
+
+/* 滚动条细一点，别抢注意力 */
+.wd-root :is(.wd-page, .wd-dock-scroll, .wd-mail-rows, .wd-mail-read) { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+
+/* 主按钮带一点投影和上浮，在线状态点会呼吸 */
+.wd-root .wd-btn.is-primary { box-shadow: 0 6px 18px -12px color-mix(in srgb, var(--primary) 70%, transparent); }
+.wd-root .wd-btn.is-primary:hover { transform: translateY(-1px); }
+.wd-engine.is-live i { box-shadow: 0 0 0 3px color-mix(in srgb, var(--down) 16%, transparent); animation: wd-pulse 2.4s ease-in-out infinite; }
+@keyframes wd-pulse { 50% { opacity: .45; } }
+
+/* 系统设了减少动效就全部停下 */
+@media (prefers-reduced-motion: reduce) {
+  .wd-ambient i, .wd-page, .wd-dock, .wd-dialog, .wd-toast, .wd-spark path, .wd-msg.is-user, .wd-engine.is-live i { animation: none !important; }
+  .wd-card:hover { transform: none; }
 }

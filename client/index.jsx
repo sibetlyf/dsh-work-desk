@@ -106,6 +106,7 @@ function Shell(props) {
   return (
     <div className={`wd-root ${narrow ? 'is-narrow' : ''} ${compact ? 'is-compact' : ''} ${showDock ? 'has-dock' : ''}`} ref={rootRef}>
       <style>{css}</style>
+      <div className="wd-ambient" aria-hidden="true"><i /><i /><i /></div>
       <div className="wd-main">
         <header className="wd-topbar" data-window-drag="">
           <nav className="wd-nav" aria-label="工作台导航">
