@@ -4,6 +4,15 @@ import React from 'react'
 
 const BASE = 'work-desk/'
 
+// 宿主在 apply(ctx) 时把上下文交进来，会话镜像要用它拿 sessions 服务
+let rootCtx = null
+export function setRootCtx(ctx) {
+  rootCtx = ctx
+}
+export function getRootCtx() {
+  return rootCtx
+}
+
 let snapshot = {
   ready: false, error: null,
   state: null, quotes: {}, quoteError: null, quotesAt: null, alerts: [], brief: null,

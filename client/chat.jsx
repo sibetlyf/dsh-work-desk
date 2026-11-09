@@ -1,6 +1,7 @@
 // 右侧对话栏：一句话改日程、邮件和持仓。解析和执行都在 Host，这里只展示回执。
 import React from 'react'
-import { sendChat, setDesk, undo, useDesk } from './desk.js'
+import { getRootCtx, sendChat, setDesk, undo, useDesk } from './desk.js'
+import { SessionDock } from './sessiondock.jsx'
 import { Icon, IconButton } from './ui.jsx'
 
 const SUGGESTIONS = [
@@ -103,27 +104,54 @@ export function ChatPanel({ head, suggestions, placeholder = '想让我做什么
   )
 }
 
-export function ChatDock() {
+/** 独立助手：没有会话服务时的兜底（自己调模型 + 本地规则）。 */
+function LocalChat() {
   const model = useDesk(s => s.model)
   const modelOk = useDesk(s => s.modelOk)
   const modelError = useDesk(s => s.modelError)
   return (
+    <ChatPanel
+      head={(
+        <>
+          <h2>助手</h2>
+          <span className={`wd-engine ${!model ? '' : modelOk === false ? 'is-down' : 'is-live'}`} title={modelError || (model ? `使用 ${model}` : '当前没有可用模型，只能处理常见说法')}>
+            <i />{model ?? '本地规则'}
+          </span>
+          <span style={{ flex: 1 }} />
+          <IconButton icon="gear" label="设置" onClick={() => setDesk({ settingsOpen: true })} />
+          <IconButton icon="close" label="收起对话" onClick={() => setDesk({ dockOpen: false })} />
+        </>
+      )}
+      suggestions={SUGGESTIONS}
+      placeholder="比如：明天下午三点和设计对一下改版"
+    />
+  )
+}
+
+/**
+ * 有 sessions 服务时，面板里的助手就是 DSH 的那条会话（读 eventSource、写 prompt）；
+ * 没有时退回独立助手，功能不至于消失。
+ */
+export function ChatDock({ useSessions }) {
+  const canMirror = Boolean(useSessions) && typeof getRootCtx()?.get?.('sessions')?.retain === 'function'
+  if (canMirror) {
+    return (
+      <aside className="wd-dock" aria-label="DSH 会话">
+        <SessionDock
+          useSessions={useSessions}
+          head={(
+            <>
+              <h2>会话</h2>
+              <IconButton icon="gear" label="设置" onClick={() => setDesk({ settingsOpen: true })} />
+            </>
+          )}
+        />
+      </aside>
+    )
+  }
+  return (
     <aside className="wd-dock" aria-label="对话助手">
-      <ChatPanel
-        head={(
-          <>
-            <h2>助手</h2>
-            <span className={`wd-engine ${!model ? '' : modelOk === false ? 'is-down' : 'is-live'}`} title={modelError || (model ? `使用 ${model}` : '当前没有可用模型，只能处理常见说法')}>
-              <i />{model ?? '本地规则'}
-            </span>
-            <span style={{ flex: 1 }} />
-            <IconButton icon="gear" label="设置" onClick={() => setDesk({ settingsOpen: true })} />
-            <IconButton icon="close" label="收起对话" onClick={() => setDesk({ dockOpen: false })} />
-          </>
-        )}
-        suggestions={SUGGESTIONS}
-        placeholder="比如：明天下午三点和设计对一下改版"
-      />
+      <LocalChat />
     </aside>
   )
 }

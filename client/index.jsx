@@ -2,7 +2,7 @@
 import React from 'react'
 import { CalendarView } from './calendar.jsx'
 import { ChatDock } from './chat.jsx'
-import { loadDesk, setDesk, startTicker, undo, useDesk } from './desk.js'
+import { loadDesk, setDesk, setRootCtx, startTicker, undo, useDesk } from './desk.js'
 import { MailView } from './mail.jsx'
 import { MarketView } from './market.jsx'
 import { SettingsDialog } from './settings.jsx'
@@ -46,7 +46,7 @@ function Alerts() {
   )
 }
 
-function Shell() {
+function Shell(props) {
   const ready = useDesk(s => s.ready)
   const error = useDesk(s => s.error)
   const view = useDesk(s => s.view)
@@ -60,8 +60,17 @@ function Shell() {
   React.useEffect(() => {
     loadDesk()
     const stopTicker = startTicker()
-    const reload = setInterval(() => loadDesk(), 90_000)
-    return () => { stopTicker(); clearInterval(reload) }
+    // DSH 对话里的 Agent 也能改工作台，这里勤一点拉，切回来时立刻拉一次
+    const reload = setInterval(() => loadDesk(), 15_000)
+    const onVisible = () => { if (document.visibilityState === 'visible') loadDesk() }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    return () => {
+      stopTicker()
+      clearInterval(reload)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
   }, [])
 
   React.useEffect(() => {
@@ -119,7 +128,7 @@ function Shell() {
           ) : ready ? <Active /> : <div className="wd-loading"><span className="wd-shimmer">正在把今天铺开…</span></div>}
         </main>
       </div>
-      {ready && showDock ? <ChatDock /> : null}
+      {ready && showDock ? <ChatDock useSessions={props.useSessions} /> : null}
       <FormDialog />
       {ready ? <SettingsDialog /> : null}
       <Toast />
@@ -130,6 +139,7 @@ function Shell() {
 export const inject = ['slots']
 
 export function apply(ctx) {
+  setRootCtx(ctx)
   ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: PANEL_ID }, Shell))
   ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
     name: 'sidebar.panellist',

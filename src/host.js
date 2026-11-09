@@ -11,6 +11,7 @@ import { createScheduler, evaluateAlerts } from './sync.js'
 import { imapConfigOf, markMail, readMail, sendNow, syncInbox, testImap } from './mail/service.js'
 import { draftVia, emailTool, foldersVia, listMail, markMailVia, probe, readMailVia } from './mail/dshmail.js'
 import { snippetOf } from './mail/mime.js'
+import { registerTools } from './tools.js'
 
 const MAX_JSON = 4_000_000
 
@@ -454,6 +455,8 @@ export default {
       onError: err => { desk.lastError = err.message },
     })
     settings.read().then(saved => setAssistantModel(saved.assistant)).catch(() => {})
+    // 把工作台注册成宿主工具：DSH 对话里的 Agent 可以直接加日程、记待办、读状态
+    ctx.effect(() => registerTools(ctx, desk), 'dsh-work-desk: agent tools')
     ctx.effect(() => {
       desk.scheduler.start().catch(() => {})
       return () => desk.scheduler.stop()
