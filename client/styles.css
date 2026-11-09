@@ -417,8 +417,43 @@ body[data-ds-dark-theme] .wd-root { color-scheme: dark; }
   .wd-mail-page { grid-template-columns: 180px 300px minmax(0, 1fr); }
 }
 
-/* --------------------- 氛围与细节（对齐 media-desk 的观感） --------------------- */
-/* 背景三团很淡的彩色光斑，缓慢漂移；只做氛围，不拦截点击 */
+/* 邮戳：借 media-desk 的齿孔遮罩，用在「今天」和日期上 */
+.wd-stamp {
+  --s: 9px; --hole: 2.4px;
+  position: relative; display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+  width: 54px; aspect-ratio: 4 / 5; flex: none; overflow: hidden; background: var(--card); color: var(--ink2);
+  -webkit-mask: radial-gradient(circle var(--hole), transparent 97%, #000) calc(var(--s) / -2) calc(var(--s) / -2) / var(--s) var(--s),
+    linear-gradient(#000 0 0) center / calc(100% - var(--s)) calc(100% - var(--s)) no-repeat;
+  mask: radial-gradient(circle var(--hole), transparent 97%, #000) calc(var(--s) / -2) calc(var(--s) / -2) / var(--s) var(--s),
+    linear-gradient(#000 0 0) center / calc(100% - var(--s)) calc(100% - var(--s)) no-repeat;
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / .1));
+  transition: transform .35s cubic-bezier(.2, 1.4, .4, 1);
+}
+.wd-stamp b { font-family: var(--latin-serif); font-size: 22px; line-height: 24px; font-weight: 400; letter-spacing: -.02em; }
+.wd-stamp small { margin-top: 1px; font-size: 9px; letter-spacing: .12em; color: var(--ink3); }
+.wd-stamp.is-today { background: color-mix(in srgb, var(--primary) 5%, var(--card)); color: var(--ink); box-shadow: inset 0 0 0 .5px color-mix(in srgb, var(--ink) 12%, transparent); animation: wd-breathe 2.6s ease-in-out infinite; }
+.wd-stamp.is-today b { color: var(--ink); }
+.wd-stamp.is-today small { margin-top: 2px; color: var(--ink2); }
+.wd-stamp.is-sm { --s: 5px; --hole: 1.2px; width: 34px; }
+.wd-stamp.is-sm b { font-size: 14px; line-height: 16px; }
+.wd-hero-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+@keyframes wd-breathe { 50% { opacity: .7; } }
+
+/* 今日页垫一层很淡的点阵纸，往编辑感靠 */
+.wd-today::before {
+  content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--ink) 9%, transparent) 1px, transparent 1.2px);
+  background-size: 26px 26px; opacity: .55;
+  -webkit-mask-image: linear-gradient(#000, transparent 58%);
+  mask-image: linear-gradient(#000, transparent 58%);
+}
+.wd-today > * { position: relative; z-index: 1; }
+
+/* 晨报用衬线正文，像读一段话而不是看表格 */
+.wd-brief { font-family: var(--serif); font-size: 13px; line-height: 22px; }
+.wd-brief h4 { font-family: var(--dsw-font-family); }
+
+/* --------------------- 氛围与细节（对齐 media-desk 的观感） --------------------- *//* 背景三团很淡的彩色光斑，缓慢漂移；只做氛围，不拦截点击 */
 .wd-ambient { position: absolute; inset: 0; z-index: 0; overflow: clip; pointer-events: none; }
 .wd-ambient i {
   position: absolute; width: 54vmax; height: 54vmax; border-radius: 50%;

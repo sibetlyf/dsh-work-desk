@@ -271,6 +271,10 @@ export function CalendarView() {
               : '接下来没有安排'}
           </p>
         </div>
+        <span className="wd-stamp is-sm is-today" aria-hidden="true" title={`${monday.getMonth() + 1} 月`}>
+          <b>{monday.getMonth() + 1}</b>
+          <small>月</small>
+        </span>
         <span style={{ flex: 1 }} />
         <IconButton icon="chevL" label={mode === 'week' ? '上一周' : '上个月'} onClick={() => {
           if (mode === 'week') setMonday(addDays(monday, -7))

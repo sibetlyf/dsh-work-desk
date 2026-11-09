@@ -305,10 +305,18 @@ export function TodayView() {
   return (
     <div className="wd-page wd-today">
       <header className="wd-hero">
-        <p className="wd-hero-date">{now.getFullYear()} · {now.getMonth() + 1} 月 {now.getDate()} 日 · {WEEK_LABELS[(now.getDay() + 6) % 7]}</p>
-        <h1 className="wd-hero-line">
-          今天 <b>{todayEvents.length}</b> 个会，<b>{openTasks.length}</b> 条待办，<b>{needsReply.length}</b> 封未读。
-        </h1>
+        <div className="wd-hero-top">
+          <div>
+            <p className="wd-hero-date">{now.getFullYear()} · {now.getMonth() + 1} 月 {now.getDate()} 日 · {WEEK_LABELS[(now.getDay() + 6) % 7]}</p>
+            <h1 className="wd-hero-line">
+              今天 <b>{todayEvents.length}</b> 个会，<b>{openTasks.length}</b> 条待办，<b>{needsReply.length}</b> 封未读。
+            </h1>
+          </div>
+          <span className="wd-stamp is-today" aria-hidden="true" title="今天">
+            <b>{now.getDate()}</b>
+            <small>{now.getMonth() + 1} 月</small>
+          </span>
+        </div>
         {next ? (
           <p className="wd-hero-next">
             <Icon name="clock" size={14} />
