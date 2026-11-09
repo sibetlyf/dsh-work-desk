@@ -2,10 +2,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { registerTools, TOOL_NAMES } from '../src/tools.js'
-import { buildSeed, migrateState } from '../src/seed.js'
+import { applySamples, buildSeed, migrateState } from '../src/seed.js'
 
 function harness() {
   const state = migrateState(buildSeed(new Date('2026-11-09T09:00:00+08:00')))
+  applySamples(state, new Date('2026-11-09T09:00:00+08:00'))
   const tools = new Map()
   const ctx = {
     get(name) {

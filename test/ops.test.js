@@ -1,12 +1,15 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { applyOps } from '../src/ops.js'
-import { buildSeed, migrateState } from '../src/seed.js'
+import { applySamples, buildSeed, migrateState } from '../src/seed.js'
 
 const now = new Date('2026-11-09T10:00:00+08:00')
 
+// 生产环境首次打开是空的；这里显式载入示例，专门测「有数据时」的行为
 function fresh() {
-  return migrateState(buildSeed(now))
+  const state = migrateState(buildSeed(now))
+  applySamples(state, now)
+  return state
 }
 
 test('新建日程：默认 30 分钟，回执带时间', () => {
@@ -65,6 +68,24 @@ test('邮件标记只认四种动作', () => {
   assert.equal(mail.starred, true)
   const { errors } = applyOps(state, [{ op: 'mark_mail', id: mail.id, action: 'archive' }])
   assert.match(errors[0], /不支持/)
+})
+
+test('v1 自动塞进去的示例数据，升级时一次性清掉', () => {
+  const legacy = {
+    version: 1,
+    createdAt: now.toISOString(),
+    events: [{ id: 'e_demo_1', title: '旧示例', start: now.toISOString(), end: now.toISOString(), sample: true }, { id: 'e_mine', title: '我的会', start: now.toISOString(), end: now.toISOString() }],
+    mails: [{ id: 'demo:INBOX:1', subject: '旧示例邮件', sample: true }],
+    watchlist: [{ code: 'sh600519', sample: true }],
+    positions: [{ id: 'p_demo_1', sample: true }],
+    tasks: [],
+  }
+  const next = migrateState(legacy)
+  assert.equal(next.version, 2)
+  assert.deepEqual(next.events.map(row => row.id), ['e_mine'])
+  assert.equal(next.mails.length, 0)
+  assert.equal(next.watchlist.length, 0)
+  assert.equal(next.positions.length, 0)
 })
 
 test('清空示例不会碰用户自己的数据', () => {

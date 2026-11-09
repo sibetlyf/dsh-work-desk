@@ -1,4 +1,4 @@
-﻿# 办公工作台
+# 办公工作台
 
 > DeepSeek Harness 的一个插件。日程、邮件、行情，加一份每天早上替你读完的晨报。
 
@@ -15,6 +15,8 @@
 ![今日页](docs/shot-today.png)
 
 <sub>日程 · 邮件 · 行情：[日历](docs/shot-calendar.png) · [邮件](docs/shot-mail.png) · [行情](docs/shot-market.png)</sub>
+
+**首次打开是空的**，不塞示例邮件和示例日程：邮件页直接引导你接真实邮箱（装了 dsh-email 就一键接入，否则填 IMAP/SMTP）；日程点空白格就能建。想先看看有数据的样子，设置 → 示例数据 → 载入，随时能一键清空。
 
 架构参考 [dsh-media-desk](https://github.com/woniuniuniu/dsh-media-desk)（我做的自媒体工作台），把这个"创作台"改成了"办公台"。设计取舍写在 [设计说明.md](./设计说明.md)。
 

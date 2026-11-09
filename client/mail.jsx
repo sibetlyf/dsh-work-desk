@@ -1,6 +1,6 @@
 // 邮件：左边筛选，中间列表，右边读信。回复只写草稿，发送必须在这里点两次确认。
 import React from 'react'
-import { closeComposer, dispatchOps, markMail, openComposer, openMail, sendComposer, setDesk, syncMail, useDesk } from './desk.js'
+import { closeComposer, dispatchOps, markMail, openComposer, openMail, saveSettings, sendComposer, setDesk, syncMail, useDesk } from './desk.js'
 import { Dialog, Empty, Icon, IconButton, Segmented } from './ui.jsx'
 import { addTask } from './today.jsx'
 import { fmtDateTime, fmtTime, mailTime, relativeDay } from './util.js'
@@ -163,6 +163,33 @@ function Composer() {
   )
 }
 
+function ConnectMail() {
+  const mail = useDesk(s => s.mail)
+  return (
+    <div className="wd-connect">
+      <h2>先接一个真实邮箱</h2>
+      <p>工作台不放示例邮件。{mail.pluginAvailable ? '检测到你装了 DSH 邮件插件，直接用它最省事：' : '两种接法，任选一种：'}</p>
+      <div className="wd-connect-opts">
+        {mail.pluginAvailable ? (
+          <button type="button" className="wd-connect-opt" onClick={async () => {
+            await saveSettings({ mail: { provider: 'dsh-email' } })
+            const result = await syncMail()
+            if (!result?.ok) setDesk({ settingsOpen: true })
+          }}>
+            <b>一键接入 DSH 邮件插件{mail.account ? `（${mail.account}）` : ''}</b>
+            <span>账号、授权码、同步都在 dsh-email 里；工作台只读它、写草稿，发送留在它的草稿箱确认。</span>
+          </button>
+        ) : null}
+        <button type="button" className="wd-connect-opt" onClick={() => setDesk({ settingsOpen: true })}>
+          <b>{mail.pluginAvailable ? '改用自己填的 IMAP / SMTP' : '填 IMAP / SMTP'}</b>
+          <span>QQ / 163 用授权码，Gmail 用应用专用密码；填完点「测试连接」。</span>
+        </button>
+      </div>
+      <p className="wd-muted">路径：设置 → 邮件 → 邮件来源。接好后回到这里点「同步」。</p>
+    </div>
+  )
+}
+
 export function MailView() {
   const state = useDesk(s => s.state)
   const filter = useDesk(s => s.mailFilter)
@@ -190,6 +217,7 @@ export function MailView() {
 
   const current = state.mails.find(row => row.id === focusId) ?? null
   const currentDraft = filter === 'drafts' ? drafts.find(row => row.id === focusId) : null
+  const noMail = state.mails.length === 0
 
   return (
     <div className="wd-page wd-mail-page">
@@ -208,12 +236,14 @@ export function MailView() {
           <p>
             {mail.provider === 'dsh-email'
               ? `DSH 邮件${mail.account ? ` · ${mail.account}` : ''}`
-              : mail.provider === 'imap' ? (mail.address || 'IMAP') : '示例邮箱'}
+              : mail.provider === 'imap' ? (mail.address || 'IMAP') : '未接入邮箱'}
           </p>
           <small>
             {mail.provider === 'dsh-email' && !mail.pluginAvailable
               ? '没检测到 dsh-email 的邮件工具'
-              : mail.lastSyncAt ? `上次同步 ${fmtTime(mail.lastSyncAt)}` : mail.configured ? '等待同步' : '设置里接入自己的邮箱'}
+              : mail.provider === 'demo'
+                ? '设置里接一个真实邮箱'
+                : mail.lastSyncAt ? `上次同步 ${fmtTime(mail.lastSyncAt)}` : mail.configured ? '等待同步' : '设置里接入自己的邮箱'}
           </small>
           {mail.lastSyncError ? <small className="wd-error">{mail.lastSyncError}</small> : null}
           <button
@@ -248,14 +278,19 @@ export function MailView() {
                 </span>
               </button>
             ))
-          ) : rows.length === 0 ? <Empty title="没有匹配的邮件" hint={query ? '换个关键词试试。' : '点右上角同步，或者在设置里接入邮箱。'} /> : rows.map(row => (
+          ) : rows.length === 0 ? (
+            <Empty
+              title={noMail ? '还没有邮件' : '没有匹配的邮件'}
+              hint={noMail ? '右边接一个真实邮箱，或在设置里接 DSH 邮件插件。' : query ? '换个关键词试试。' : '点右上角同步，或者在设置里接入邮箱。'}
+            />
+          ) : rows.map(row => (
             <Row key={row.id} mail={row} active={row.id === focusId} onClick={() => openMail(row.id)} />
           ))}
         </div>
       </section>
 
       <section className="wd-mail-read">
-        {currentDraft ? (
+        {noMail && filter !== 'drafts' ? <ConnectMail /> : currentDraft ? (
           <article className="wd-reader">
             <header className="wd-reader-head">
               <h2>{currentDraft.subject}</h2>

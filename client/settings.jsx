@@ -1,6 +1,6 @@
 // 设置：只放真的会生效的项。邮箱授权码只在本机，界面上只看得到末四位。
 import React from 'react'
-import { saveSettings, setDesk, testMail, useDesk } from './desk.js'
+import { dispatchOps, saveSettings, setDesk, testMail, useDesk } from './desk.js'
 import { Dialog, Icon } from './ui.jsx'
 
 const PROVIDERS = [
@@ -172,6 +172,18 @@ export function SettingsDialog() {
             <label className="wd-field is-small"><span>间隔（秒）</span><input type="number" min="3" max="300" value={form.quotes.intervalSec} onChange={e => setNested('quotes', 'intervalSec', e.target.value)} /></label>
           </div>
           <small>只在后台按间隔拉一次公开行情；行情页打开时前端也会跟着刷。</small>
+        </div>
+
+        <div className="wd-field">
+          <span>示例数据</span>
+          <div className="wd-cal-actions">
+            <button type="button" className="wd-btn is-small" onClick={async () => {
+              const result = await dispatchOps([{ op: 'load_samples' }], { label: '载入示例数据' })
+              if (result) setDesk({ settingsOpen: false })
+            }}>载入示例数据</button>
+            <button type="button" className="wd-btn is-small" onClick={() => dispatchOps([{ op: 'clear_samples' }], { label: '清空示例数据' })}>清空示例数据</button>
+          </div>
+          <small>默认不塞任何假数据；载入的示例都带 sample 标记，随时能一键清掉，不会动你自己的条目。</small>
         </div>
 
         <div className="wd-form-foot">

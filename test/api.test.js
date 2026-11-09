@@ -98,11 +98,12 @@ test('工作台接口冒烟', async t => {
   const app = await start()
   t.after(() => app.close())
 
-  await t.test('GET state 返回示例数据、没有行情也不报错', async () => {
+  await t.test('GET state 首次打开是空的：不塞示例数据', async () => {
     const { status, body } = await get(app.base, 'state')
     assert.equal(status, 200)
-    assert.ok(body.state.events.length >= 4)
-    assert.ok(body.state.mails.length >= 5)
+    assert.equal(body.state.events.length, 0)
+    assert.equal(body.state.mails.length, 0)
+    assert.equal(body.state.tasks.length, 0)
     assert.equal(body.mail.provider, 'demo')
     assert.ok(Array.isArray(body.alerts))
     assert.equal(body.canUndo, false)
@@ -188,5 +189,15 @@ test('工作台接口冒烟', async t => {
     // 插件模式下不允许从工作台直接发信
     const send = await post(app.base, 'mail/send', { to: 'a@b.com', subject: 'x', text: 'y' })
     assert.equal(send.status, 400)
+  })
+
+  await t.test('示例数据是用户主动载入/清空的', async () => {
+    const loaded = await post(app.base, 'ops', { ops: [{ op: 'load_samples' }], label: '载入示例' })
+    assert.equal(loaded.status, 200)
+    assert.equal(loaded.body.state.events.filter(row => row.sample).length, 5)
+    assert.equal(loaded.body.state.mails.filter(row => row.sample).length, 6)
+    const cleared = await post(app.base, 'ops', { ops: [{ op: 'clear_samples' }], label: '清空示例' })
+    assert.equal(cleared.body.state.events.filter(row => row.sample).length, 0)
+    assert.equal(cleared.body.state.mails.filter(row => row.sample).length, 0)
   })
 })

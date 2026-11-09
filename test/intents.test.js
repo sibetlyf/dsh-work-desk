@@ -1,10 +1,14 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { localIntent, parseWhen } from '../src/intents.js'
-import { buildSeed, migrateState } from '../src/seed.js'
+import { applySamples, buildSeed, migrateState } from '../src/seed.js'
 
 const now = new Date('2026-11-09T09:00:00+08:00')
-const state = () => migrateState(buildSeed(now))
+const state = () => {
+  const next = migrateState(buildSeed(now))
+  applySamples(next, now)
+  return next
+}
 const quotes = {
   sh600519: { symbol: 'sh600519', name: '贵州茅台', code: '600519', price: 1444.21, prevClose: 1453, changePct: -0.6, change: -8.79 },
   sz000001: { symbol: 'sz000001', name: '平安银行', code: '000001', price: 11.87, prevClose: 11.81, changePct: 0.51, change: 0.06 },

@@ -432,6 +432,24 @@ export function requestRejection(ctx, req) {
 
 export const name = 'dsh-work-desk'
 
+/**
+ * dsh-email 已经配好账号时，把邮件来源自动切过去：用户不用再填一遍 IMAP。
+ * 读不到账号、或用户自己选过来源时不插手。
+ */
+async function preferDshMail(ctx, settings) {
+  const current = await settings.read().catch(() => null)
+  if (!current || current.mail.provider !== 'demo') return
+  if (!emailTool(ctx)) return
+  const result = await probe(ctx).catch(() => null)
+  if (!result?.ok) return
+  await settings.update({
+    mail: {
+      provider: 'dsh-email',
+      ...(result.account ? { account: result.account, address: result.account } : {}),
+    },
+  })
+}
+
 export default {
   inject: ['webServer', 'connection'],
   apply(ctx) {
@@ -455,6 +473,8 @@ export default {
       onError: err => { desk.lastError = err.message },
     })
     settings.read().then(saved => setAssistantModel(saved.assistant)).catch(() => {})
+    // 已经装了 dsh-email 并配好账号时直接用它，不再让用户填一遍 IMAP
+    preferDshMail(ctx, settings).catch(() => {})
     // 把工作台注册成宿主工具：DSH 对话里的 Agent 可以直接加日程、记待办、读状态
     ctx.effect(() => registerTools(ctx, desk), 'dsh-work-desk: agent tools')
     ctx.effect(() => {

@@ -1,6 +1,8 @@
-// 首次打开时的示例数据：几个会、几封邮件、自选和持仓。
-// 全部带 sample 标记，右上角「示例数据 · 清空」一键清掉，不会和真实数据混在一起。
+// 首次打开是空的：不给假邮件、假日程，直接引导用户接真实数据。
+// 想体验「有数据长什么样」时，设置里可以手动载入示例；所有示例都带 sample 标记，随时能清空。
 import { addDays, startOfDay } from './calendar.js'
+
+const VERSION = 2
 
 function at(base, offsetDays, time, minutes = 30) {
   const [h, m] = time.split(':').map(Number)
@@ -34,7 +36,8 @@ function mail(base, hoursAgo, row) {
   }
 }
 
-export function buildSeed(now = new Date()) {
+/** 只在用户主动「载入示例数据」时用到的内容。 */
+export function sampleData(now = new Date()) {
   const events = [
     {
       id: 'e_demo_1', title: '产品周会', ...at(now, 0, '10:00', 60), location: '3 楼·大会议室',
@@ -56,13 +59,10 @@ export function buildSeed(now = new Date()) {
       attendees: ['韩梅梅'], color: 'green', source: 'manual', status: 'confirmed', sample: true,
       createdAt: now.toISOString(),
     },
-  ]
-
-  const events2 = [
     {
-      id: 'e_demo_5', title: '客户demo 彩排', ...at(now, 3, '11:00', 60), location: '线上',
-      notes: '周五正式演示，先走一遍流程。', attendees: ['王强'], color: 'rose', source: 'ical',
-      status: 'tentative', sample: true, createdAt: now.toISOString(),
+      id: 'e_demo_5', title: '客户 demo 彩排', ...at(now, 3, '11:00', 60), location: '线上', notes: '',
+      attendees: ['王强'], color: 'rose', source: 'ical', status: 'tentative', sample: true,
+      createdAt: now.toISOString(),
     },
   ]
 
@@ -115,12 +115,9 @@ export function buildSeed(now = new Date()) {
   ]
 
   return {
-    version: 1,
-    createdAt: now.toISOString(),
-    events: [...events, ...events2],
+    events,
     tasks,
     mails,
-    drafts: [],
     watchlist: [
       { code: 'sh000001', name: '上证指数', sample: true },
       { code: 'sh600519', name: '贵州茅台', sample: true },
@@ -132,6 +129,20 @@ export function buildSeed(now = new Date()) {
       { id: 'p_demo_1', code: 'sh600519', name: '贵州茅台', shares: 100, cost: 1380, sample: true },
       { id: 'p_demo_2', code: 'sz000001', name: '平安银行', shares: 2000, cost: 11.2, sample: true },
     ],
+  }
+}
+
+/** 全新的空工作台：没有任何示例。 */
+export function buildSeed(now = new Date()) {
+  return {
+    version: VERSION,
+    createdAt: now.toISOString(),
+    events: [],
+    tasks: [],
+    mails: [],
+    drafts: [],
+    watchlist: [],
+    positions: [],
     alerts: [],
     brief: null,
     briefs: [],
@@ -140,14 +151,47 @@ export function buildSeed(now = new Date()) {
   }
 }
 
-/** 老版本状态补齐字段，避免读到半份数据就崩。 */
+/**
+ * 用户主动「载入示例数据」时调用：合并进去，不覆盖已有条目。
+ * @param {object} state - 会被就地修改。
+ * @param {Date} now - 现在。
+ */
+export function applySamples(state, now = new Date()) {
+  const samples = sampleData(now)
+  const merge = (key, rows) => {
+    const have = new Set((state[key] ?? []).map(row => row.id ?? row.code))
+    for (const row of rows) {
+      const id = row.id ?? row.code
+      if (have.has(id)) continue
+      state[key] = [...(state[key] ?? []), row]
+      have.add(id)
+    }
+  }
+  merge('events', samples.events)
+  merge('tasks', samples.tasks)
+  merge('mails', samples.mails)
+  merge('watchlist', samples.watchlist)
+  merge('positions', samples.positions)
+  state.events.sort((a, b) => new Date(a.start) - new Date(b.start))
+  state.mails.sort((a, b) => Date.parse(b.date) - Date.parse(a.date))
+  state.sampleCleared = false
+  state.sampleLoadedAt = now.toISOString()
+}
+
+/** 老版本状态补齐字段；v1 里自动塞进去的示例数据在升级时一次性清掉。 */
 export function migrateState(state) {
   const next = { ...state }
-  next.version = 1
   for (const key of ['events', 'tasks', 'mails', 'drafts', 'watchlist', 'positions', 'alerts', 'briefs', 'chat']) {
     if (!Array.isArray(next[key])) next[key] = []
   }
   if (!next.createdAt) next.createdAt = new Date().toISOString()
+  if ((next.version ?? 1) < VERSION) {
+    // 之前是「首次自动塞示例」，现在改成用户主动载入；升级时把自动塞的那批清掉
+    for (const key of ['events', 'tasks', 'mails', 'watchlist', 'positions', 'alerts', 'drafts']) {
+      next[key] = next[key].filter(row => !row.sample)
+    }
+    next.version = VERSION
+  }
   return next
 }
 

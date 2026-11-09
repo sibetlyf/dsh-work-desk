@@ -304,6 +304,14 @@ body[data-ds-dark-theme] .wd-root { color-scheme: dark; }
 .wd-mail-account p { font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
 .wd-mail-account small { color: var(--ink3); font-size: 11px; }
 .wd-mail-tip { color: var(--ink3); font-size: 11px; line-height: 17px; }
+.wd-connect { flex: 1; display: flex; flex-direction: column; gap: 10px; padding: 28px 26px; max-width: 560px; }
+.wd-connect h2 { font-size: 17px; font-weight: 500; }
+.wd-connect p { color: var(--ink2); font-size: 12.5px; line-height: 20px; }
+.wd-connect-opts { display: flex; flex-direction: column; gap: 8px; margin: 4px 0; }
+.wd-connect-opt { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: var(--r-md); border: .5px solid var(--line-strong); background: var(--card); text-align: left; }
+.wd-connect-opt:hover { background: var(--hover); }
+.wd-connect-opt b { font-size: 13px; font-weight: 500; }
+.wd-connect-opt span { color: var(--ink3); font-size: 12px; line-height: 18px; }
 .wd-mail-list { display: flex; flex-direction: column; min-height: 0; border-right: .5px solid var(--line); }
 .wd-mail-search { flex: none; padding: 8px 12px; border-bottom: .5px solid var(--line); }
 .wd-search { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; border-radius: var(--r-sm); background: var(--hover); color: var(--ink3); }

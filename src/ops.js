@@ -2,6 +2,7 @@
 // 模型输出也是不可信输入，所以这里只放行白名单字段。
 import { fmtDate, fmtTime } from './calendar.js'
 import { normalizeCode, displaySymbol } from './quotes.js'
+import { applySamples } from './seed.js'
 
 export const EVENT_STATUS = ['confirmed', 'tentative', 'cancelled']
 export const COLORS = ['blue', 'violet', 'amber', 'green', 'rose', 'slate']
@@ -221,6 +222,10 @@ const handlers = {
   },
 
   /* ------------------------------ 维护 ------------------------------ */
+  load_samples(state, op, now) {
+    applySamples(state, new Date(now))
+    return { text: '已载入示例数据，随时可以在设置里清空' }
+  },
   clear_samples(state) {
     const strip = key => { state[key] = state[key].filter(row => !row.sample) }
     for (const key of ['events', 'tasks', 'mails', 'watchlist', 'positions', 'alerts', 'drafts']) strip(key)

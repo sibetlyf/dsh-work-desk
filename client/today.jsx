@@ -136,7 +136,11 @@ function NeedsReply({ mails }) {
         <span style={{ flex: 1 }} />
         <button type="button" className="wd-link" onClick={() => setDesk({ view: 'mail' })}>全部邮件</button>
       </header>
-      {mails.length === 0 ? <p className="wd-card-empty">没有等你回复的邮件。</p> : (
+      {mails.length === 0 ? (
+        <p className="wd-card-empty">
+          还没有邮件。<button type="button" className="wd-link" onClick={() => setDesk({ settingsOpen: true })}>去接一个真实邮箱</button>
+        </p>
+      ) : (
         <ul className="wd-mail-mini">
           {mails.slice(0, 4).map(mail => (
             <li key={mail.id}>
