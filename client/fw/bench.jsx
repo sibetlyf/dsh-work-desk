@@ -41,6 +41,8 @@ export function WorkbenchView() {
   const mail = useDesk(s => s.mail)
   const fw = useFwWidgets()
   const [layout, setLayout] = React.useState(() => loadLayout())
+  const [revision, setRevision] = React.useState(0)
+  const [remote, setRemote] = React.useState(null) // null 未知 / true Host 权威 / false 本机兜底
   const [editing, setEditing] = React.useState(false)
   const [panel, setPanel] = React.useState(null)
   const [query, setQuery] = React.useState('')
@@ -48,13 +50,75 @@ export function WorkbenchView() {
   const dragFrom = React.useRef(null)
   const [dropAt, setDropAt] = React.useState(null)
   const [now, setNow] = React.useState(() => new Date())
+  const saveTimer = React.useRef(null)
+  const revisionRef = React.useRef(0)
 
   React.useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 30_000)
     return () => clearInterval(timer)
   }, [])
 
-  React.useEffect(() => { saveLayout(layout) }, [layout])
+  const adopt = data => {
+    const next = sanitize({ theme: data.theme, atoms: data.atoms })
+    if (!next) return
+    setLayout(next)
+    setRevision(data.revision)
+    revisionRef.current = data.revision
+    setRemote(true)
+  }
+
+  React.useEffect(() => {
+    let live = true
+    const load = async () => {
+      try {
+        const res = await fetch('work-desk/workbench')
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const data = await res.json()
+        if (live) adopt(data)
+      } catch {
+        if (live) setRemote(false)
+      }
+    }
+    load()
+    const timer = setInterval(load, 15_000)
+    const onFocus = () => load()
+    window.addEventListener('focus', onFocus)
+    return () => { live = false; clearInterval(timer); window.removeEventListener('focus', onFocus) }
+  }, [])
+
+  // 改动先即时生效，再整批写回 Host；Host 不在线时退回本机保存。
+  React.useEffect(() => {
+    if (remote === null) return
+    if (remote === false) { saveLayout(layout); return }
+    clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(async () => {
+      try {
+        const res = await fetch('work-desk/workbench', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            baseRevision: revisionRef.current,
+            requestId: `ui-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+            ops: [{ op: 'replace', layout: { theme: layout.theme, atoms: layout.atoms } }],
+            source: 'ui',
+          }),
+        })
+        const data = await res.json()
+        if (data.conflict) {
+          toast('布局已被别处改过，已重新读取', { error: true })
+          adopt(data.layout ? { ...data.layout, revision: data.revision } : data)
+          return
+        }
+        if (!data.ok) { toast((data.errors ?? ['保存失败'])[0], { error: true }); return }
+        setRevision(data.revision)
+        revisionRef.current = data.revision
+        saveLayout(layout)
+      } catch {
+        setRemote(false)
+      }
+    }, 350)
+    return () => clearTimeout(saveTimer.current)
+  }, [layout, remote])
 
   const update = mutate => setLayout(prev => {
     const draftLayout = { ...prev, atoms: prev.atoms.map(atom => ({ ...atom })) }
@@ -216,7 +280,7 @@ export function WorkbenchView() {
         </div>
 
         <p className="fw-hint">
-          占用 {cellCount(layout.atoms)} 格 · 布局与生成式规格暂存本机浏览器（Host 权威存储与 Agent 编排在后续步骤接入）
+          占用 {cellCount(layout.atoms)} 格 · {remote === true ? `Host 保存（revision ${revision}）· Agent 可通过 workbench_inspect / workbench_apply 修改` : remote === false ? 'Host 接口不可用，暂存本机浏览器（重启 Harness 后自动切换为 Host 保存）' : '正在读取 Host 布局…'}
         </p>
       </div>
     </div>

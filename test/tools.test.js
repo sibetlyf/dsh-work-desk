@@ -32,14 +32,36 @@ function harness() {
     refresh: async () => ({ quotes }),
   }
   const settings = { read: async () => ({ mail: { provider: 'demo' } }) }
-  const dispose = registerTools(ctx, { store, board, settings })
-  return { ctx, tools, state, store, board, settings, dispose }
+  // 工作台布局工具用一份内存替身：验证工具面与 Host 存储的契约，不落盘。
+  let layout = { revision: 1, theme: 'instrument', atoms: [{ id: 'wm-tasks', type: 'tasks', size: 'm' }] }
+  const workbench = {
+    read: async () => structuredClone(layout),
+    apply: async payload => {
+      const ops = payload.ops ?? []
+      const errors = []
+      const applied = []
+      for (const op of ops) {
+        if (op.op === 'resize' && ['s', 'm', 'l'].includes(op.size)) {
+          const atom = layout.atoms.find(row => row.id === op.id)
+          if (atom) { atom.size = op.size; applied.push(`${op.id} 改为 ${op.size}`) } else errors.push('找不到组件')
+        } else if (op.op === 'add' && typeof op.type === 'string' && ['s', 'm', 'l'].includes(op.size)) {
+          layout.atoms.push({ id: op.id ?? `a${layout.atoms.length}`, type: op.type, size: op.size })
+          applied.push(`添加 ${op.type}`)
+        } else errors.push(`未知操作：${op.op}`)
+      }
+      if (errors.length) return { ok: false, revision: layout.revision, errors, applied, layout }
+      layout = { ...layout, revision: layout.revision + 1 }
+      return { ok: true, revision: layout.revision, applied, layout }
+    },
+  }
+  const dispose = registerTools(ctx, { store, board, settings, workbench })
+  return { ctx, tools, state, store, board, settings, workbench, dispose }
 }
 
-test('注册五张工具，名字都带 work_desk_ 前缀', () => {
+test('注册全部工具：五张业务工具 + 两张工作台布局工具', () => {
   const { tools, dispose } = harness()
   assert.deepEqual([...tools.keys()].sort(), [...TOOL_NAMES].sort())
-  assert.equal(tools.size, 5)
+  assert.equal(tools.size, TOOL_NAMES.length)
   for (const definition of tools.values()) {
     assert.equal(typeof definition.execute, 'function')
     assert.equal(definition.parameters.type, 'object')
@@ -120,9 +142,27 @@ test('list 回执里必须带 id，模型才能定位要改的那一条', async 
   assert.ok(mails.receipt.includes(state.mails[0].id), '邮件回执里应该有 id')
 })
 
+test('工作台布局工具：inspect 给出 id 与 revision，apply 走同一套校验', async () => {
+  const { tools } = harness()
+  const before = await tools.get('workbench_inspect').execute({})
+  assert.equal(before.revision, 1)
+  assert.match(before.receipt, /wm-tasks/)
+  assert.match(before.receipt, /revision 1/)
+
+  const applied = await tools.get('workbench_apply').execute({ ops: [{ op: 'resize', id: 'wm-tasks', size: 'l' }], baseRevision: 1 })
+  assert.equal(applied.revision, 2)
+  assert.match(applied.receipt, /wm-tasks/)
+  assert.match(applied.receipt, /revision 2/)
+  assert.deepEqual(applied.atoms.map(atom => atom.size), ['l'])
+
+  const invalid = await tools.get('workbench_apply').execute({ ops: [{ op: 'nope' }] })
+  assert.match(invalid.receipt, /没有写入/)
+  assert.equal(invalid.revision, 2)
+})
+
 test('dispose 之后工具被摘掉', () => {
   const { tools, dispose } = harness()
-  assert.equal(tools.size, 5)
+  assert.equal(tools.size, TOOL_NAMES.length)
   dispose()
   assert.equal(tools.size, 0)
 })

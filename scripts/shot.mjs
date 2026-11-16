@@ -11,6 +11,11 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const outDir = join(root, 'docs')
 await mkdir(outDir, { recursive: true })
 
+// 截图不碰真实 ~/.dsh：把 HOME/USERPROFILE 指到临时目录，Host 的 state/workbench 都落在那里。
+const fakeHome = await mkdtemp(join(tmpdir(), 'wd-shot-'))
+process.env.USERPROFILE = fakeHome
+process.env.HOME = fakeHome
+
 // 1. 打一个给 harness 用的 React（IIFE，挂到 window）
 const reactBundle = join(outDir, '.react.js')
 await build({
@@ -262,6 +267,28 @@ const cells = await page.evaluate(() => {
 console.log('编辑态格子：', JSON.stringify(cells))
 if (!cells.cells || cells.firstCellBorder !== 'dashed') throw new Error('编辑态应显示虚线格子')
 await page.screenshot({ path: join(outDir, 'shot-bench-edit.png') })
+
+// Host 权威布局：读 revision，Agent 侧写入后刷新应出现
+const hostLayout = await (await fetch(`${base}/work-desk/workbench`)).json()
+console.log('Host 布局：', JSON.stringify({ revision: hostLayout.revision, atoms: hostLayout.atoms.length, theme: hostLayout.theme }))
+const applied = await (await fetch(`${base}/work-desk/workbench`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json', 'sec-fetch-site': 'same-origin' },
+  body: JSON.stringify({ baseRevision: hostLayout.revision, requestId: 'shot-agent-1', ops: [{ op: 'add', type: 'clock', id: 'agent-clock', size: 'm' }], source: 'agent' }),
+})).json()
+console.log('Agent 写入：', JSON.stringify({ ok: applied.ok, revision: applied.revision, applied: applied.applied }))
+if (!applied.ok) throw new Error(`Agent 写入失败：${JSON.stringify(applied.errors)}`)
+await page.reload({ waitUntil: 'networkidle' })
+await page.click('.wd-nav button:has-text("工作台")')
+await page.waitForSelector('.fw-grid')
+await page.waitForTimeout(500)
+const afterAgent = await page.evaluate(() => ({
+  slots: document.querySelectorAll('.fw-slot').length,
+  hint: document.querySelector('.fw-hint')?.textContent ?? '',
+}))
+console.log('刷新后：', JSON.stringify(afterAgent))
+if (!afterAgent.hint.includes('Host 保存')) throw new Error(`界面未切到 Host 权威存储：${afterAgent.hint}`)
+await page.screenshot({ path: join(outDir, 'shot-bench-agent.png') })
 console.log('bench ok')
 
 await browser.close()

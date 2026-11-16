@@ -10,6 +10,7 @@ import { applyOps, newId } from './ops.js'
 import { QuoteBoard, fetchMinute, normalizeCode } from './quotes.js'
 import { mailConfigured, mailReady, Settings, publicSettings } from './settings.js'
 import { Store } from './store.js'
+import { WorkbenchStore } from './workbench.js'
 import { createScheduler, evaluateAlerts } from './sync.js'
 import { imapConfigOf, markMail, readMail, sendNow, syncInbox, testImap } from './mail/service.js'
 import { draftVia, emailTool, foldersVia, listMail, markMailVia, probe, readMailVia } from './mail/dshmail.js'
@@ -336,6 +337,10 @@ async function route(ctx, desk, req, res) {
       const rows = await fwWidgets()
       return json(res, 200, { widgets: rows, dir: FW_DIR })
     }
+    if (path === 'workbench') {
+      const layout = await desk.workbench.read()
+      return json(res, 200, layout)
+    }
     if (path === 'fw/file') {
       const id = String(url.searchParams.get('id') ?? '')
       const name = String(url.searchParams.get('name') ?? '')
@@ -381,6 +386,10 @@ async function route(ctx, desk, req, res) {
 
   const body = await readJson(req)
   switch (path) {
+    case 'workbench': {
+      const result = await desk.workbench.apply({ ...body, source: body.source ?? 'ui' })
+      return json(res, result.ok ? 200 : 409, result)
+    }
     case 'ops': {
       const label = typeof body.label === 'string' ? body.label : '操作'
       const result = await desk.store.mutate(label, draft => {
@@ -557,10 +566,12 @@ export default {
     const store = new Store()
     const settings = new Settings(store.root)
     const board = new QuoteBoard()
+    const workbench = new WorkbenchStore(store.root)
     const desk = {
       store,
       settings,
       board,
+      workbench,
     }
     desk.scheduler = createScheduler({
       store,

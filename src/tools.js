@@ -382,8 +382,77 @@ export function registerTools(ctx, desk) {
     },
   }
 
-  const disposers = [calendar, task, stateTool, mailTool, marketTool].map(definition => ctx.get('tools').register(definition))
+  // 工作台布局：读取现状 + 批量改布局。两个工具共用 src/workbench.js 的同一套操作校验。
+  const inspectTool = {
+    name: 'workbench_inspect',
+    description: 'Read the workbench layout: revision, theme, every component instance (id / type / size) and the available component types. Call it before changing the layout.',
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+    output: {
+      schema: { type: 'object', properties: { receipt: { type: 'string' }, revision: { type: 'number' }, theme: { type: 'string' }, atoms: { type: 'array', items: { type: 'object', additionalProperties: true } }, types: { type: 'array', items: { type: 'string' } } }, additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: value?.receipt ?? '完成' }],
+    },
+    async execute() {
+      const layout = await desk.workbench.read()
+      const size = { s: '小 1x1', m: '中 2x1', l: '大 4x3' }
+      const lines = layout.atoms.map(atom => `- ${atom.id}｜${atom.type}｜${size[atom.size] ?? atom.size}`)
+      return {
+        receipt: `revision ${layout.revision}｜主题 ${layout.theme}｜${layout.atoms.length} 个组件\n${lines.join('\n')}\n可用类型：${['calendar', 'next', 'tasks', 'mail', 'quotes', 'brief', 'clock', 'alerts', 'quick', 'genui', 'fw:<FullWidget组件id>'].join('、')}`,
+        revision: layout.revision,
+        theme: layout.theme,
+        atoms: layout.atoms,
+        types: ['calendar', 'next', 'tasks', 'mail', 'quotes', 'brief', 'clock', 'alerts', 'quick', 'genui', 'fw:*'],
+      }
+    },
+  }
+
+  const applyTool = {
+    name: 'workbench_apply',
+    description: 'Apply one batch of layout changes to the workbench. All operations are validated together: if any is invalid nothing is written. Removing a component only removes its card, never the underlying mail, calendar or task data.',
+    parameters: {
+      type: 'object',
+      properties: {
+        ops: {
+          type: 'array',
+          description: 'Layout operations applied in order: {"op":"add","type":"tasks","size":"m"} / {"op":"remove","id":"..."} / {"op":"resize","id":"...","size":"s|m|l"} / {"op":"move","id":"...","to":2} / {"op":"update","id":"...","config":{},"spec":{}} / {"op":"theme","theme":"instrument|paper|type"} / {"op":"replace","layout":{...}}.',
+          items: { type: 'object', additionalProperties: true },
+        },
+        baseRevision: {
+          type: 'number',
+          description: 'Revision returned by workbench_inspect. Omit to apply on the current revision; pass it to avoid overwriting a layout changed after you read it.',
+        },
+        requestId: {
+          type: 'string',
+          description: 'Idempotency key for retries: the same requestId never applies twice.',
+        },
+      },
+      required: ['ops'],
+      additionalProperties: false,
+    },
+    output: {
+      schema: { type: 'object', properties: { receipt: { type: 'string' }, revision: { type: 'number' }, atoms: { type: 'array', items: { type: 'object', additionalProperties: true } }, errors: { type: 'array', items: { type: 'string' } } }, additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: value?.receipt ?? '完成' }],
+    },
+    async execute(args) {
+      const ops = Array.isArray(args?.ops) ? args.ops : []
+      if (!ops.length) throw new Error('ops 不能为空')
+      const current = await desk.workbench.read()
+      const baseRevision = Number.isFinite(Number(args?.baseRevision)) ? Number(args.baseRevision) : current.revision
+      const result = await desk.workbench.apply({ ops, baseRevision, requestId: args?.requestId, source: 'agent' })
+      if (result.conflict) return { receipt: result.error, revision: result.revision, errors: [result.error] }
+      if (!result.ok) return { receipt: `没有写入：${(result.errors ?? []).join('；')}`, revision: result.revision, errors: result.errors }
+      const size = { s: '小', m: '中', l: '大' }
+      const lines = result.layout.atoms.map(atom => `- ${atom.id}｜${atom.type}｜${size[atom.size] ?? atom.size}`)
+      return {
+        receipt: `已更新布局（revision ${result.revision}）：${result.applied.join('；')}\n${lines.join('\n')}`,
+        revision: result.revision,
+        applied: result.applied,
+        atoms: result.layout.atoms,
+      }
+    },
+  }
+
+  const disposers = [calendar, task, stateTool, mailTool, marketTool, inspectTool, applyTool].map(definition => ctx.get('tools').register(definition))
   return () => { for (const dispose of disposers) { try { dispose() } catch {} } }
 }
 
-export const TOOL_NAMES = ['work_desk_calendar', 'work_desk_task', 'work_desk_state', 'work_desk_mail', 'work_desk_market']
+export const TOOL_NAMES = ['work_desk_calendar', 'work_desk_task', 'work_desk_state', 'work_desk_mail', 'work_desk_market', 'workbench_inspect', 'workbench_apply']
