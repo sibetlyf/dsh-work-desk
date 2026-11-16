@@ -203,9 +203,37 @@ try {
     await page.click('.wd-nav button:has-text("工作台")')
     await page.waitForSelector('.fw-grid', { timeout: 15_000 })
     await sleep(1600)
+    // 桌面默认会话栏展开会让网格变窄；布局/尺寸断言用满宽网格，先收起会话栏
+    const railBtn = page.locator('.fw-bar button:has-text("会话")')
+    if (await railBtn.count()) {
+      const pressed = await railBtn.getAttribute('aria-pressed')
+      if (pressed === 'true') await railBtn.click()
+      await sleep(300)
+    }
     const after = (await hostLayout()).revision
     assert.equal(after, before, `进入工作台后 revision 从 ${before} 涨到 ${after}`)
     return `revision ${after}`
+  })
+
+  await step('会话栏：存在「新建会话」入口，展开/收起都不写布局', async () => {
+    const toggle = page.locator('.fw-bar button:has-text("会话")')
+    assert.equal(await toggle.count(), 1, '工作台顶栏缺少会话栏开关')
+    await toggle.click()
+    await sleep(700)
+    const rail = page.locator('.fw-rail')
+    assert.equal(await rail.count(), 1, '展开后应有会话栏')
+    assert.equal(await rail.locator('button:has-text("新建")').count(), 1, '会话栏缺少新建会话按钮')
+    const before = await hostLayout()
+    await toggle.click()
+    await sleep(700)
+    assert.equal(await rail.count(), 0, '再点一次应收起会话栏')
+    const shape = await page.evaluate(() => ({
+      grid: document.querySelector('.fw-grid').clientWidth,
+      wf: Math.round(document.querySelector('.wd-fw').getBoundingClientRect().width),
+    }))
+    assert.ok(shape.grid <= shape.wf + 1, `网格不应超过工作台宽度：${JSON.stringify(shape)}`)
+    assert.equal((await hostLayout()).revision, before.revision, '开关会话栏不应写布局')
+    return `网格 ${shape.grid}/${shape.wf}px`
   })
 
   // ── 1. 8 列网格：桌面 8，容器 <880 → 4，<560 → 2 ────────────────
@@ -224,9 +252,12 @@ try {
     return { cols: explicit, tracks, fits, gridScroll: grid.scrollWidth, gridClient: grid.clientWidth, wfWidth: Math.round(wf.getBoundingClientRect().width) }
   })
   const setContainerWidth = async px => {
+    // 宽度由外壳决定：.wd-fw 是 flex 子项，直接设 width 会被 flex 覆盖
     await page.evaluate(width => {
-      const el = document.querySelector('.wd-fw')
-      el.style.width = width ? `${width}px` : ''
+      const shell = document.querySelector('.fw-shell')
+      const host = document.querySelector('.wd-fw')
+      if (shell) shell.style.width = width ? `${width}px` : ''
+      if (host) host.style.flex = width ? '1 1 auto' : ''
     }, px)
     await page.waitForTimeout(300)
   }

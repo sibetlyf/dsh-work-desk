@@ -6,6 +6,7 @@ import { dispatchOps, openMail, setDesk, toast, useDesk } from '../desk.js'
 import { renderAtom } from './atoms.jsx'
 import { FwWidget, fwIconUrl, sizeOfWidget, useFwWidgets } from './fwwidgets.jsx'
 import { GenuiAtom, sanitizeSpec, specUsable } from './genui.jsx'
+import { SessionRail } from './session-rail.jsx'
 import { ATOMS, SIZES, cellCount, columnsFor, defaultLayout, isKnownType, loadLayout, newId, planLayout, sanitize, saveLayout } from './layout.js'
 
 const THEMES = [
@@ -126,6 +127,7 @@ export function WorkbenchView() {
   const [dropAt, setDropAt] = React.useState(null)
   const [now, setNow] = React.useState(() => new Date())
   const [configFor, setConfigFor] = React.useState(null)
+  const [railOpen, setRailOpen] = React.useState(true)
   const [columns, setColumns] = React.useState(8)
   const saveTimer = React.useRef(null)
   const revisionRef = React.useRef(0)
@@ -140,15 +142,28 @@ export function WorkbenchView() {
   }, [])
 
   // 容器宽度决定列数（与 theme.css 的容器查询同一阈值）：卡片必须按实际列数放置
+  const railTouched = React.useRef(false)
   React.useEffect(() => {
     const host = hostRef.current
     if (!host) return undefined
+    const apply = width => setColumns(columnsFor(width))
+    apply(host.getBoundingClientRect().width)
     const observer = new ResizeObserver(entries => {
       const entry = entries[entries.length - 1]
-      if (entry) setColumns(columnsFor(entry.contentRect.width))
+      if (entry) apply(entry.contentRect.width)
     })
     observer.observe(host)
     return () => observer.disconnect()
+  }, [])
+
+  // 会话栏按窗口宽度决定（不能按格子宽度：栏一开一关会让宽度来回震荡）
+  React.useEffect(() => {
+    const sync = () => {
+      if (!railTouched.current) setRailOpen(window.innerWidth >= 900)
+    }
+    sync()
+    window.addEventListener('resize', sync)
+    return () => window.removeEventListener('resize', sync)
   }, [])
 
   const adopt = data => {
@@ -332,6 +347,7 @@ export function WorkbenchView() {
 
   return (
     <div className="wd-page wd-bench-page">
+      <div className={`fw-shell ${railOpen ? 'has-rail' : ''}`}>
       <div className={`wd-fw ${editing ? 'is-editing' : ''}`} data-fw-theme={layout.theme} ref={hostRef}>
         <header className="fw-bar">
           <div><h1>工作台</h1></div>
@@ -342,6 +358,7 @@ export function WorkbenchView() {
               <button key={theme.id} type="button" aria-pressed={layout.theme === theme.id} onClick={() => update(draftLayout => { draftLayout.theme = theme.id })}>{theme.label}</button>
             ))}
           </div>
+          <button type="button" className="fw-btn" aria-pressed={railOpen} onClick={() => { railTouched.current = true; setRailOpen(value => !value) }} aria-label={railOpen ? '收起会话栏' : '展开会话栏'}>会话</button>
           <button type="button" className="fw-btn" onClick={() => setPanel(panel === 'add' ? null : 'add')} aria-expanded={panel === 'add'}>＋ 添加组件</button>
           <button
             type="button"
@@ -500,6 +517,8 @@ export function WorkbenchView() {
             }}
           />
         ) : null}
+      </div>
+        {railOpen ? <SessionRail /> : null}
       </div>
     </div>
   )

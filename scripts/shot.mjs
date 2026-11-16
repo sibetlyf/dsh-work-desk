@@ -163,6 +163,8 @@ console.log('market ok')
 // 原子工作台：8 列网格、三档尺寸、FullWidget 三套主题
 await page.click('.wd-nav button:has-text("工作台")')
 await page.waitForSelector('.fw-grid', { timeout: 10_000 })
+// 会话栏默认展开；截图与尺寸断言用满宽网格，先收起（「会话」按钮可随时打开）
+await page.click('.fw-bar button:has-text("会话")').catch(() => {})
 await page.waitForTimeout(600)
 const gridInfo = await page.evaluate(() => {
   const grid = document.querySelector('.fw-grid')
@@ -272,26 +274,35 @@ await page.waitForTimeout(500)
 const genuiSlot = page.locator('.fw-slot').filter({ has: page.locator('.fw-card.is-genui') }).last()
 const titleOf = async () => (await genuiSlot.locator('.fw-genui h3').textContent().catch(() => '')) ?? ''
 const medium = await titleOf()
-await page.click('.fw-bar button:has-text("编辑布局")')
-await page.waitForTimeout(250)
-const cycle = genuiSlot.locator('.fw-edit .fw-size')
-let small = medium
-for (let i = 0; i < 3 && small !== '6 个会'; i++) {
-  await cycle.click()
-  await page.waitForTimeout(350)
-  small = await titleOf()
+
+// 三档切换走 Host 的 resize 操作再重载：验证的是渲染，不依赖卡片在网格里的可见位置
+const genuiId = (await (await fetch(`${base}/work-desk/workbench`)).json()).atoms.filter(atom => atom.type === 'genui').at(-1).id
+const resize = async size => {
+  const current = await (await fetch(`${base}/work-desk/workbench`)).json()
+  await fetch(`${base}/work-desk/workbench`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'sec-fetch-site': 'same-origin' },
+    body: JSON.stringify({ baseRevision: current.revision, requestId: `shot-resize-${size}-${Date.now()}`, ops: [{ op: 'resize', id: genuiId, size }], source: 'agent' }),
+  })
+  await page.reload({ waitUntil: 'networkidle' })
+  await page.click('.wd-nav button:has-text("工作台")')
+  await page.waitForTimeout(500)
+  return titleOf()
 }
-let large = small
-for (let i = 0; i < 3 && large !== '本周工作概览'; i++) {
-  await cycle.click()
-  await page.waitForTimeout(350)
-  large = await titleOf()
-}
+const small = await resize('s')
+const large = await resize('l')
+await resize('m')
 console.log('三档规格：', JSON.stringify({ medium, small, large }))
 if (!(medium === '本周概览' && small === '6 个会' && large === '本周工作概览')) throw new Error('生成式卡片三档没有各自的内容')
+await page.click('.fw-bar button:has-text("编辑布局")')
+await page.waitForTimeout(400)
 await page.screenshot({ path: join(outDir, 'shot-bench-genui-views.png') })
 
-// FullWidget 组件设置：打开 ⚙ 面板
+// FullWidget 组件设置：打开 ⚙ 面板（先确保在编辑态）
+if (!(await page.locator('.fw-bar button:has-text("完成编辑")').count())) {
+  await page.click('.fw-bar button:has-text("编辑布局")')
+  await page.waitForTimeout(300)
+}
 const fwSlot = page.locator('.fw-slot').filter({ has: page.locator('.fw-card.is-widget') }).first()
 if (await fwSlot.count()) {
   await fwSlot.locator('.fw-edit button:has-text("⚙")').click().catch(() => {})
