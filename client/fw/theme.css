@@ -538,6 +538,50 @@
 .fw-gbar i { width: 100%; max-width: 26px; border-radius: 3px; background: var(--fw-accent); opacity: .85; min-height: 2px; }
 .fw-gbar span { font-size: 9px; color: var(--fw-fg-muted); white-space: nowrap; }
 
+/* ── 组件设置弹层 ─────────────────────────────────────────────── */
+.fw-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 12, 22, .55);
+  backdrop-filter: blur(6px);
+}
+.fw-modal-card {
+  width: min(420px, 92vw);
+  max-height: 82vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px 20px;
+  border-radius: 16px;
+  background: var(--fw-card-solid);
+  color: var(--fw-fg);
+  border: 1px solid var(--fw-border);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .45);
+}
+.fw-modal-card header { display: flex; align-items: center; gap: 8px; }
+.fw-modal-card h3 { margin: 0; font-size: 14px; flex: 1; }
+.fw-modal-card header button { border: 0; background: none; color: var(--fw-fg-muted); font-size: 16px; cursor: pointer; }
+.fw-field { display: flex; align-items: center; gap: 12px; font-size: 12px; }
+.fw-field > span { flex: 1; color: var(--fw-fg-muted); }
+.fw-field input[type="text"], .fw-field input[type="number"], .fw-field select {
+  min-width: 0;
+  max-width: 58%;
+  padding: 6px 8px;
+  border: 1px solid var(--fw-border);
+  border-radius: 7px;
+  background: var(--fw-control);
+  color: var(--fw-fg);
+  font: inherit;
+  font-size: 11.5px;
+}
+.fw-field.is-toggle input { width: 18px; height: 18px; flex: none; }
+.fw-modal-card footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+
 @container (max-width: 880px) {
   .fw-panel { grid-template-columns: minmax(0, 1fr); max-height: 52vh; }
 }

@@ -188,21 +188,27 @@ const slotOf = name => page.locator('.fw-slot').filter({ has: page.locator(`.fw-
 const bodyOf = async name => (await slotOf(name).locator('.fw-body').innerText()).replace(/\s+/g, ' ').trim()
 
 const tasksM = await bodyOf('待办')
-await slotOf('待办').locator('.fw-edit button:has-text("大")').click()
-await page.waitForTimeout(350)
-const tasksL = await bodyOf('待办')
-await slotOf('待办').locator('.fw-edit button:has-text("小")').click()
-await page.waitForTimeout(350)
-const tasksS = await bodyOf('待办')
-
-const rows = text => (text.match(/•/g) || []).length
-console.log('待办 中：', tasksM.slice(0, 40))
+const cycleSize = slotOf('待办').locator('.fw-edit .fw-size')
+const samples = [{ size: (await cycleSize.textContent()).trim(), body: tasksM }]
+for (let i = 0; i < 2; i++) {
+  await cycleSize.click()
+  await page.waitForTimeout(350)
+  samples.push({ size: (await cycleSize.textContent()).trim(), body: await bodyOf('待办') })
+}
+const bySize = Object.fromEntries(samples.map(sample => [sample.size, sample.body]))
+const tasksL = bySize['大'] ?? ''
+const tasksS = bySize['小'] ?? ''
+const tasksM2 = bySize['中'] ?? tasksM
+console.log('待办 中：', tasksM2.slice(0, 40))
 console.log('待办 大：', tasksL.slice(0, 60))
 console.log('待办 小：', tasksS.slice(0, 40))
 if (!(tasksL.length > tasksS.length)) throw new Error('大卡信息量应大于小卡')
-if (!(tasksS.length < tasksM.length || tasksS.split(' ').length <= tasksM.split(' ').length)) throw new Error('小卡应比中卡精简')
-await slotOf('待办').locator('.fw-edit button:has-text("中")').click()
-await page.waitForTimeout(300)
+if (!(tasksS.length < tasksM2.length)) throw new Error('小卡应比中卡精简')
+// 回到「中」再退出编辑
+for (let i = 0; i < 3 && (await cycleSize.textContent()).trim() !== '中'; i++) {
+  await cycleSize.click()
+  await page.waitForTimeout(300)
+}
 await page.click('.fw-bar button:has-text("完成编辑")')
 await page.waitForTimeout(300)
 
@@ -238,7 +244,7 @@ await page.waitForFunction(() => {
 await page.waitForTimeout(600)
 await page.screenshot({ path: join(outDir, 'shot-bench-fullwidget.png') })
 
-// 生成式卡片
+// 生成式卡片：先验扁平规格，再验三档 views 随尺寸切换内容
 await page.click('.fw-bar button:has-text("添加组件")')
 await page.locator('.fw-panel-section').filter({ hasText: '生成式卡片' }).locator('button:has-text("加入工作台")').click()
 await page.waitForSelector('.fw-genui', { timeout: 10_000 })
@@ -249,6 +255,54 @@ const genui = await page.evaluate(() => {
 })
 console.log('生成式卡片：', JSON.stringify(genui))
 await page.screenshot({ path: join(outDir, 'shot-bench-genui.png') })
+
+const viewsSpec = JSON.stringify({
+  title: '三档规格',
+  views: {
+    s: { title: '6 个会', items: [{ type: 'stat', label: '今天', value: '6' }] },
+    m: { title: '本周概览', items: [{ type: 'progress', label: '待办完成', value: 60 }] },
+    l: { title: '本周工作概览', items: [{ type: 'chart', data: [{ label: '周一', value: 2 }, { label: '周二', value: 1 }, { label: '周三', value: 3 }] }] },
+  },
+})
+await page.click('.fw-bar button:has-text("添加组件")')
+await page.locator('.fw-panel-section').filter({ hasText: '生成式卡片' }).locator('textarea').fill(viewsSpec)
+await page.locator('.fw-panel-section').filter({ hasText: '生成式卡片' }).locator('button:has-text("加入工作台")').click()
+await page.waitForTimeout(500)
+
+const genuiSlot = page.locator('.fw-slot').filter({ has: page.locator('.fw-card.is-genui') }).last()
+const titleOf = async () => (await genuiSlot.locator('.fw-genui h3').textContent().catch(() => '')) ?? ''
+const medium = await titleOf()
+await page.click('.fw-bar button:has-text("编辑布局")')
+await page.waitForTimeout(250)
+const cycle = genuiSlot.locator('.fw-edit .fw-size')
+let small = medium
+for (let i = 0; i < 3 && small !== '6 个会'; i++) {
+  await cycle.click()
+  await page.waitForTimeout(350)
+  small = await titleOf()
+}
+let large = small
+for (let i = 0; i < 3 && large !== '本周工作概览'; i++) {
+  await cycle.click()
+  await page.waitForTimeout(350)
+  large = await titleOf()
+}
+console.log('三档规格：', JSON.stringify({ medium, small, large }))
+if (!(medium === '本周概览' && small === '6 个会' && large === '本周工作概览')) throw new Error('生成式卡片三档没有各自的内容')
+await page.screenshot({ path: join(outDir, 'shot-bench-genui-views.png') })
+
+// FullWidget 组件设置：打开 ⚙ 面板
+const fwSlot = page.locator('.fw-slot').filter({ has: page.locator('.fw-card.is-widget') }).first()
+if (await fwSlot.count()) {
+  await fwSlot.locator('.fw-edit button:has-text("⚙")').click().catch(() => {})
+  await page.waitForTimeout(300)
+  const modal = await page.evaluate(() => ({ open: !!document.querySelector('.fw-modal'), fields: document.querySelectorAll('.fw-field').length }))
+  console.log('组件设置面板：', JSON.stringify(modal))
+  await page.screenshot({ path: join(outDir, 'shot-bench-settings.png') })
+  await page.locator('.fw-modal button:has-text("取消")').click().catch(() => {})
+}
+await page.click('.fw-bar button:has-text("完成编辑")')
+await page.waitForTimeout(200)
 
 // 编辑态：格子可见
 await page.click('.fw-bar button:has-text("编辑布局")')

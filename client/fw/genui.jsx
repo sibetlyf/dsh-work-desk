@@ -10,6 +10,26 @@ function text(value) {
   return typeof value === 'string' ? value.slice(0, MAX_TEXT) : ''
 }
 
+/** 按当前尺寸取对应规格：views 里没有这一档时退回扁平规格或中档。 */
+export function pickSpec(spec, size) {
+  if (!spec || typeof spec !== 'object') return null
+  const views = spec.views
+  if (views && typeof views === 'object') {
+    const chosen = views[size] ?? views.m ?? Object.values(views)[0]
+    if (chosen && typeof chosen === 'object') return chosen
+  }
+  return spec
+}
+
+/** 能否加入工作台：扁平规格或有任意一档 views 里含白名单节点。 */
+export function specUsable(raw) {
+  if (!raw || typeof raw !== 'object') return false
+  if (sanitizeSpec(raw)) return true
+  const views = raw.views
+  if (!views || typeof views !== 'object') return false
+  return ['s', 'm', 'l'].some(size => sanitizeSpec(views[size]))
+}
+
 /** 校验结构，非法节点直接丢弃，不整块失败。 */
 export function sanitizeSpec(raw) {
   if (!raw || typeof raw !== 'object') return null
@@ -108,9 +128,10 @@ function Node({ node }) {
 }
 
 /** 渲染一张生成式卡片；返回 null 时由调用方显示“规格不合法”。 */
-export function GenuiAtom({ spec }) {
-  const clean = sanitizeSpec(spec)
-  if (!clean) return <p className="fw-empty">这张生成式卡片的规格不合法或为空。</p>
+export function GenuiAtom({ spec, size }) {
+  const view = pickSpec(spec, size ?? 'm')
+  const clean = sanitizeSpec(view)
+  if (!clean) return <p className="fw-empty">这张生成式卡片没有适合当前尺寸的规格。</p>
   return (
     <div className="fw-genui">
       {clean.title ? <h3>{clean.title}</h3> : null}

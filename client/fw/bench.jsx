@@ -5,7 +5,7 @@ import React from 'react'
 import { dispatchOps, openMail, setDesk, toast, useDesk } from '../desk.js'
 import { renderAtom } from './atoms.jsx'
 import { FwWidget, fwIconUrl, sizeOfWidget, useFwWidgets } from './fwwidgets.jsx'
-import { GenuiAtom, sanitizeSpec } from './genui.jsx'
+import { GenuiAtom, sanitizeSpec, specUsable } from './genui.jsx'
 import { ATOMS, SIZES, cellCount, defaultLayout, isKnownType, loadLayout, newId, planLayout, sanitize, saveLayout } from './layout.js'
 
 const THEMES = [
@@ -18,11 +18,80 @@ const EXAMPLES = [
   '{"title":"本周概览","items":[{"type":"stat","label":"会议","value":"6"},{"type":"progress","label":"待办完成度","value":60},{"type":"chart","data":[{"label":"周一","value":2},{"label":"周二","value":1},{"label":"周三","value":3}]}]}',
   '{"title":"风险提示","items":[{"type":"callout","tone":"warning","title":"两封邮件待回复","content":"陈欣与周舟都在等确认。"},{"type":"steps","current":1,"steps":["确认会议时间","回复评审材料"]}]}',
   '{"title":"今日三件事","items":[{"type":"list","items":[{"title":"准备评审材料","desc":"14:00 前"},{"title":"回复会议确认","desc":"今天"},{"title":"整理项目进展","desc":"明天"}]}]}',
+  '{"title":"三档规格","items":[],"views":{"s":{"title":"6 个会","items":[{"type":"stat","label":"今天","value":"6"}]},"m":{"title":"本周概览","items":[{"type":"progress","label":"待办完成","value":60},{"type":"list","items":["准备评审材料","回复会议确认"]}]},"l":{"title":"本周工作概览","items":[{"type":"chart","data":[{"label":"周一","value":2},{"label":"周二","value":1},{"label":"周三","value":3},{"label":"周四","value":2}]},{"type":"keyvalue","pairs":[{"key":"会议","value":"6 场"},{"key":"待办","value":"4 条"}]}]}}}',
 ]
 
 function widgetOf(widgets, type) {
   const id = type.startsWith('fw:') ? type.slice(3) : ''
   return widgets.find(row => row.id === id)
+}
+
+function localText(value) {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value['zh-CN'] ?? value.zh ?? value.en ?? Object.values(value)[0])
+    : value
+}
+
+/** FullWidget 组件自带 settings 声明 → 自动生成配置表单。 */
+function ComponentSettings({ widget, atom, onClose, onSave }) {
+  const fields = widget?.settings ?? []
+  const submit = event => {
+    event.preventDefault()
+    const data = new FormData(event.currentTarget)
+    const config = {}
+    for (const field of fields) {
+      const key = field.key
+      if (field.type === 'toggle') config[key] = data.get(key) === 'on'
+      else if (field.type === 'number') config[key] = Number(data.get(key))
+      else config[key] = String(data.get(key) ?? '')
+    }
+    onSave(config)
+  }
+  return (
+    <div className="fw-modal" role="dialog" aria-modal="true" aria-label="组件设置" onClick={event => { if (event.target === event.currentTarget) onClose() }}>
+      <form className="fw-modal-card" onSubmit={submit}>
+        <header>
+          <h3>{localText(widget?.name) || '组件设置'}</h3>
+          <button type="button" onClick={onClose} aria-label="关闭">×</button>
+        </header>
+        {fields.length === 0 ? <p className="fw-hint">这个组件没有可配置项。</p> : fields.map(field => {
+          const key = field.key
+          const value = atom.config?.[key] ?? localText(field.default)
+          const label = localText(field.label) || key
+          if (field.type === 'toggle') {
+            return (
+              <label key={key} className="fw-field is-toggle">
+                <span>{label}</span>
+                <input type="checkbox" name={key} defaultChecked={Boolean(value)} />
+              </label>
+            )
+          }
+          if (field.type === 'select') {
+            return (
+              <label key={key} className="fw-field">
+                <span>{label}</span>
+                <select name={key} defaultValue={value ?? ''}>
+                  {(field.options ?? []).map(option => (
+                    <option key={option.value} value={option.value}>{localText(option.label) || option.value}</option>
+                  ))}
+                </select>
+              </label>
+            )
+          }
+          return (
+            <label key={key} className="fw-field">
+              <span>{label}</span>
+              <input name={key} type={field.type === 'number' ? 'number' : 'text'} defaultValue={value ?? ''} />
+            </label>
+          )
+        })}
+        <footer>
+          <button type="button" className="fw-btn" onClick={onClose}>取消</button>
+          <button type="submit" className="fw-btn is-on">保存</button>
+        </footer>
+      </form>
+    </div>
+  )
 }
 
 function nameOf(widgets, atom) {
@@ -50,6 +119,7 @@ export function WorkbenchView() {
   const dragFrom = React.useRef(null)
   const [dropAt, setDropAt] = React.useState(null)
   const [now, setNow] = React.useState(() => new Date())
+  const [configFor, setConfigFor] = React.useState(null)
   const saveTimer = React.useRef(null)
   const revisionRef = React.useRef(0)
 
@@ -158,7 +228,7 @@ export function WorkbenchView() {
   const addGenui = () => {
     let spec
     try { spec = JSON.parse(draft) } catch (err) { toast(`JSON 解析失败：${err.message}`, { error: true }); return }
-    if (!sanitizeSpec(spec)) { toast('规格不合法：至少需要一个白名单组件', { error: true }); return }
+    if (!specUsable(spec)) { toast('规格不合法：至少需要一个白名单组件', { error: true }); return }
     add({ type: 'genui', size: 'm', spec })
   }
 
@@ -259,7 +329,7 @@ export function WorkbenchView() {
                     {widget ? (
                       <FwWidget widget={widget} instanceId={atom.id} theme={layout.theme} config={atom.config} />
                     ) : genui ? (
-                      <GenuiAtom spec={atom.spec} />
+                      <GenuiAtom spec={atom.spec} size={atom.size} />
                     ) : state ? (
                       renderAtom(atom, ctx)
                     ) : <p className="fw-empty">正在读取工作台…</p>}
@@ -268,9 +338,25 @@ export function WorkbenchView() {
                 {editing ? (
                   <div className="fw-edit">
                     <button type="button" className="fw-drag" aria-label="拖动排序" title="按住拖动">⠿</button>
-                    {Object.entries(SIZES).map(([size, meta]) => (
-                      <button key={size} type="button" aria-pressed={atom.size === size} onClick={() => update(draftLayout => { draftLayout.atoms[index].size = size })}>{meta.label}</button>
-                    ))}
+                    {atom.size === 's' ? null : (
+                      <>
+                        <button type="button" aria-label="前移" title="前移" onClick={() => update(draftLayout => { if (index > 0) { const [item] = draftLayout.atoms.splice(index, 1); draftLayout.atoms.splice(index - 1, 0, item) } })}>←</button>
+                        <button type="button" aria-label="后移" title="后移" onClick={() => update(draftLayout => { if (index < draftLayout.atoms.length - 1) { const [item] = draftLayout.atoms.splice(index, 1); draftLayout.atoms.splice(index + 1, 0, item) } })}>→</button>
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      className="fw-size"
+                      title={`当前 ${SIZES[atom.size].label}，点一下换下一档`}
+                      onClick={() => update(draftLayout => {
+                        const order = ['s', 'm', 'l']
+                        const next = order[(order.indexOf(atom.size) + 1) % order.length]
+                        draftLayout.atoms[index].size = next
+                      })}
+                    >
+                      {SIZES[atom.size].label}
+                    </button>
+                    {widget && (widget.settings ?? []).length ? <button type="button" onClick={() => setConfigFor(index)} aria-label="组件设置">⚙</button> : null}
                     <button type="button" aria-label="移除组件" onClick={() => update(draftLayout => { draftLayout.atoms.splice(index, 1) })}>×</button>
                   </div>
                 ) : null}
@@ -282,6 +368,19 @@ export function WorkbenchView() {
         <p className="fw-hint">
           占用 {cellCount(layout.atoms)} 格 · {remote === true ? `Host 保存（revision ${revision}）· Agent 可通过 workbench_inspect / workbench_apply 修改` : remote === false ? 'Host 接口不可用，暂存本机浏览器（重启 Harness 后自动切换为 Host 保存）' : '正在读取 Host 布局…'}
         </p>
+
+        {configFor != null && layout.atoms[configFor] ? (
+          <ComponentSettings
+            widget={widgetOf(fw.widgets, layout.atoms[configFor].type)}
+            atom={layout.atoms[configFor]}
+            onClose={() => setConfigFor(null)}
+            onSave={config => {
+              const index = configFor
+              update(draftLayout => { draftLayout.atoms[index].config = config })
+              setConfigFor(null)
+            }}
+          />
+        ) : null}
       </div>
     </div>
   )

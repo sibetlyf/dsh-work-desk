@@ -66,6 +66,28 @@ test('生成式卡片必须有合法 spec 才能加入', () => {
   assert.equal(good.layout.atoms.at(-1).spec.items.length, 1)
 })
 
+test('生成式卡片支持三档规格：views 里按尺寸取默认，缺档退回统一规格', () => {
+  const base = { theme: 'instrument', atoms: [{ id: 'a', type: 'tasks', size: 's' }] }
+  const spec = {
+    title: '本周',
+    views: {
+      s: { title: '6 个会', items: [{ type: 'stat', label: '今天', value: '6' }] },
+      l: { title: '本周工作概览', items: [{ type: 'chart', data: [{ label: '周一', value: 2 }] }] },
+    },
+  }
+  const result = applyWorkbenchOps(base, [{ op: 'add', id: 'g', type: 'genui', size: 'm', spec }])
+  assert.equal(result.errors.length, 0)
+  const atom = result.layout.atoms.at(-1)
+  assert.deepEqual(Object.keys(atom.spec.views).sort(), ['l', 's'])
+  assert.equal(atom.spec.views.s.title, '6 个会')
+})
+
+test('生成式卡片只有空 views 时仍然拒绝', () => {
+  const base = { theme: 'instrument', atoms: [{ id: 'a', type: 'tasks', size: 's' }] }
+  const bad = applyWorkbenchOps(base, [{ op: 'add', id: 'g', type: 'genui', size: 'm', spec: { views: { s: { items: [] } } } }])
+  assert.equal(bad.errors.length, 1)
+})
+
 test('FullWidget 类型可以进布局，未知 fw id 的格式错误会被拒', () => {
   const base = { atoms: [{ id: 'a', type: 'tasks', size: 's' }] }
   const ok = applyWorkbenchOps(base, [{ op: 'add', id: 'w1', type: 'fw:calendar', size: 'l' }])

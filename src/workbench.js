@@ -43,7 +43,27 @@ const isObject = value => value !== null && typeof value === 'object' && !Array.
 function cleanSpec(spec) {
   if (!isObject(spec)) return undefined
   const items = Array.isArray(spec.items) ? spec.items.filter(item => isObject(item) && typeof item.type === 'string').slice(0, MAX_SPEC_ITEMS) : []
-  return { title: typeof spec.title === 'string' ? spec.title.slice(0, 200) : '', items }
+  const flat = { title: typeof spec.title === 'string' ? spec.title.slice(0, 200) : '', items }
+  // 三档规格：views 里每个尺寸各一份；缺的档退回同一份扁平规格
+  if (isObject(spec.views)) {
+    const views = {}
+    for (const size of ['s', 'm', 'l']) {
+      const raw = spec.views[size]
+      if (!isObject(raw)) continue
+      const items = Array.isArray(raw.items) ? raw.items.filter(item => isObject(item) && typeof item.type === 'string').slice(0, MAX_SPEC_ITEMS) : []
+      if (!items.length) continue
+      views[size] = { title: typeof raw.title === 'string' ? raw.title.slice(0, 200) : '', items }
+    }
+    if (Object.keys(views).length) return { title: flat.title, items: flat.items, views }
+  }
+  if (!flat.items.length) return undefined
+  return flat
+}
+
+export function specHasItems(spec) {
+  if (!isObject(spec)) return false
+  if (Array.isArray(spec.items) && spec.items.length) return true
+  return isObject(spec.views) && Object.values(spec.views).some(view => isObject(view) && Array.isArray(view.items) && view.items.length)
 }
 
 /** 只保留合法字段，不信任外部输入。 */
@@ -109,7 +129,7 @@ export function applyWorkbenchOps(current, ops, { newId } = {}) {
       if (isObject(op.config)) atom.config = op.config
       if (op.type === 'genui') {
         const spec = cleanSpec(op.spec)
-        if (!spec || !spec.items.length) { errors.push('生成式卡片缺少合法规格'); continue }
+        if (!specHasItems(spec)) { errors.push('生成式卡片缺少合法规格'); continue }
         atom.spec = spec
       }
       layout.atoms.push(atom)
@@ -144,7 +164,7 @@ export function applyWorkbenchOps(current, ops, { newId } = {}) {
       }
       if (op.type === 'genui' || op.spec) {
         const spec = cleanSpec(op.spec)
-        if (!spec || !spec.items.length) { errors.push('生成式卡片规格不合法'); continue }
+        if (!specHasItems(spec)) { errors.push('生成式卡片规格不合法'); continue }
         atom.spec = spec
       }
       applied.push(`${op.id} 已更新`)
