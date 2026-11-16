@@ -1,0 +1,20 @@
+.fw-shell > .fw-rail { width: min(380px, 34vw); padding: 0; background: var(--card); color: var(--ink); border-color: var(--line); overflow: hidden; }
+.fw-rail .wd-chat { width: 100%; height: 100%; min-height: 0; border: 0; border-radius: 0; display: flex; flex-direction: column; }
+.fw-rail .wd-dock-head { flex: none; flex-wrap: wrap; gap: 6px; padding: 10px; }
+.fw-rail .wd-session-pick { max-width: 160px; flex: 1; min-width: 80px; }
+.fw-rail .wd-dock-scroll { flex: 1 1 0; min-height: 0; overflow: auto; }
+.fw-rail .wd-composer { flex: none; }
+.fw-rail .wd-msg p { overflow-wrap: anywhere; white-space: pre-wrap; }
+.fw-creation-mode { display: flex; align-items: center; gap: 5px; padding: 8px 12px; font-size: 11px; color: var(--ink2); border-top: 1px solid var(--line); }
+.fw-live-preview { flex: 0 1 290px; min-height: 120px; overflow: auto; padding: 12px; border: 1px solid var(--fw-accent); border-radius: var(--fw-radius); background: var(--fw-card); }
+.fw-live-preview header { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; }
+.fw-live-preview header strong { flex: 1; font-size: 12px; }
+.fw-live-preview small { color: var(--fw-fg-muted); font-size: 10px; }
+.fw-preview-body { padding: 10px; }
+.fw-preview-body.is-s { max-width: 150px; }
+.fw-preview-body.is-m { max-width: 360px; }
+.fw-preview-body.is-l { max-width: 720px; }
+@media (max-width: 900px) {
+  .fw-shell > .fw-rail { width: min(380px, calc(100% - 20px)); top: 64px; }
+  .fw-rail .wd-btn, .fw-rail .wd-session-pick { min-height: 44px; }
+}

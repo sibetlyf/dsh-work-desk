@@ -6,6 +6,8 @@ import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { build } from 'esbuild'
+import assert from 'node:assert/strict'
+import { clickEditorControl, scrollGeometry } from './workbench-scroll.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const outDir = join(root, 'docs')
@@ -125,8 +127,11 @@ const playwright = await import(pathToFileURL(playwrightEntry).href)
 const chromium = playwright.chromium ?? playwright.default?.chromium
 const browser = await chromium.launch()
 const page = await browser.newPage({ viewport: { width: 1500, height: 940 }, deviceScaleFactor: 2 })
-page.on('pageerror', err => console.log('页面报错：', err.message))
-page.on('console', msg => { if (msg.type() === 'error') console.log('console.error:', msg.text()) })
+const pageErrors = []
+page.on('pageerror', err => { pageErrors.push(err.message); console.log('页面报错：', err.message) })
+page.on('console', msg => { if (msg.type() === 'error') { pageErrors.push(msg.text()); console.log('console.error:', msg.text()) } })
+
+try {
 
 // 首次打开是空工作台，截图前手动载入示例数据（和真实用户路径一致）
 await fetch(`${base}/work-desk/ops`, {
@@ -164,7 +169,8 @@ console.log('market ok')
 await page.click('.wd-nav button:has-text("工作台")')
 await page.waitForSelector('.fw-grid', { timeout: 10_000 })
 // 会话栏默认展开；截图与尺寸断言用满宽网格，先收起（「会话」按钮可随时打开）
-await page.click('.fw-bar button:has-text("会话")').catch(() => {})
+const railToggle = page.locator('.fw-bar button:has-text("会话")')
+if (await railToggle.count() && await railToggle.getAttribute('aria-pressed') === 'true') await railToggle.click()
 await page.waitForTimeout(600)
 const gridInfo = await page.evaluate(() => {
   const grid = document.querySelector('.fw-grid')
@@ -272,30 +278,29 @@ await page.locator('.fw-panel-section').filter({ hasText: '生成式卡片' }).l
 await page.waitForTimeout(500)
 
 const genuiSlot = page.locator('.fw-slot').filter({ has: page.locator('.fw-card.is-genui') }).last()
-const titleOf = async () => (await genuiSlot.locator('.fw-genui h3').textContent().catch(() => '')) ?? ''
+const titleOf = async () => (await genuiSlot.locator('.fw-genui h3').textContent()) ?? ''
 const medium = await titleOf()
 
-// 三档切换走 Host 的 resize 操作再重载：验证的是渲染，不依赖卡片在网格里的可见位置
-const genuiId = (await (await fetch(`${base}/work-desk/workbench`)).json()).atoms.filter(atom => atom.type === 'genui').at(-1).id
-const resize = async size => {
-  const current = await (await fetch(`${base}/work-desk/workbench`)).json()
-  await fetch(`${base}/work-desk/workbench`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'sec-fetch-site': 'same-origin' },
-    body: JSON.stringify({ baseRevision: current.revision, requestId: `shot-resize-${size}-${Date.now()}`, ops: [{ op: 'resize', id: genuiId, size }], source: 'agent' }),
-  })
-  await page.reload({ waitUntil: 'networkidle' })
-  await page.click('.wd-nav button:has-text("工作台")')
-  await page.waitForTimeout(500)
-  return titleOf()
+// 底部卡片必须能经真实编辑控件切换，不能用 Host resize 绕过可达性。
+await page.click('.fw-bar button:has-text("编辑布局")')
+const genuiCycle = genuiSlot.locator('.fw-edit .fw-size')
+const viewTitles = { 中: medium }
+for (let i = 0; i < 2; i++) {
+  await clickEditorControl(page, genuiCycle)
+  await page.waitForTimeout(350)
+  viewTitles[(await genuiCycle.textContent()).trim()] = await titleOf()
 }
-const small = await resize('s')
-const large = await resize('l')
-await resize('m')
+const small = viewTitles['小']
+const large = viewTitles['大']
+for (let i = 0; i < 3 && (await genuiCycle.textContent()).trim() !== '中'; i++) {
+  await clickEditorControl(page, genuiCycle)
+  await page.waitForTimeout(300)
+}
+assert.equal((await genuiCycle.textContent()).trim(), '中', '三档切换后应能经 UI 返回中档')
 console.log('三档规格：', JSON.stringify({ medium, small, large }))
 if (!(medium === '本周概览' && small === '6 个会' && large === '本周工作概览')) throw new Error('生成式卡片三档没有各自的内容')
-await page.click('.fw-bar button:has-text("编辑布局")')
 await page.waitForTimeout(400)
+console.log('底部卡片 UI 换档后高度链：', JSON.stringify(await scrollGeometry(page)))
 await page.screenshot({ path: join(outDir, 'shot-bench-genui-views.png') })
 
 // FullWidget 组件设置：打开 ⚙ 面板（先确保在编辑态）
@@ -304,14 +309,16 @@ if (!(await page.locator('.fw-bar button:has-text("完成编辑")').count())) {
   await page.waitForTimeout(300)
 }
 const fwSlot = page.locator('.fw-slot').filter({ has: page.locator('.fw-card.is-widget') }).first()
-if (await fwSlot.count()) {
-  await fwSlot.locator('.fw-edit button:has-text("⚙")').click().catch(() => {})
-  await page.waitForTimeout(300)
-  const modal = await page.evaluate(() => ({ open: !!document.querySelector('.fw-modal'), fields: document.querySelectorAll('.fw-field').length }))
-  console.log('组件设置面板：', JSON.stringify(modal))
-  await page.screenshot({ path: join(outDir, 'shot-bench-settings.png') })
-  await page.locator('.fw-modal button:has-text("取消")').click().catch(() => {})
-}
+assert.equal(await fwSlot.count(), 1, '应存在已加入的 FullWidget 卡片')
+await clickEditorControl(page, fwSlot.locator('.fw-edit button[aria-label="组件设置"]'))
+await page.waitForSelector('.fw-modal', { timeout: 5000 })
+const modal = await page.evaluate(() => ({ open: !!document.querySelector('.fw-modal'), fields: document.querySelectorAll('.fw-field').length }))
+console.log('组件设置面板：', JSON.stringify(modal))
+assert.equal(modal.open, true, '组件设置必须真实打开')
+assert.ok(modal.fields > 0, '日历组件设置应有字段')
+await page.screenshot({ path: join(outDir, 'shot-bench-settings.png') })
+await page.locator('.fw-modal button:has-text("取消")').click()
+await page.waitForSelector('.fw-modal', { state: 'detached' })
 await page.click('.fw-bar button:has-text("完成编辑")')
 await page.waitForTimeout(200)
 
@@ -356,6 +363,9 @@ if (!afterAgent.hint.includes('Host 保存')) throw new Error(`界面未切到 H
 await page.screenshot({ path: join(outDir, 'shot-bench-agent.png') })
 console.log('bench ok')
 
-await browser.close()
-server.close()
-for (const dispose of cleanups.reverse()) { try { dispose() } catch {} }
+assert.deepEqual(pageErrors.filter(message => !/status of 409/.test(message)), [], '截图流程不应存在运行时错误')
+} finally {
+  await browser.close()
+  server.close()
+  for (const dispose of cleanups.reverse()) { try { dispose() } catch {} }
+}

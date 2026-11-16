@@ -6,6 +6,7 @@ import { loadDesk, setDesk, setRootCtx, startTicker, undo, useDesk } from './des
 import { WorkbenchView } from './fw/bench.jsx'
 import { WorkbenchSettings } from './fw/settings-section.jsx'
 import fwCss from './fw/theme.css'
+import creationCss from './fw/creation.css'
 import { Island } from './island.jsx'
 import { MailView } from './mail.jsx'
 import { MarketView } from './market.jsx'
@@ -107,10 +108,11 @@ function Shell(props) {
   }, [canUndo, view])
 
   const Active = VIEWS[view] ?? TodayView
-  const showDock = dockOpen
+  // 工作台已经有嵌入式会话栏，不能再挂载第二个 ChatDock。
+  const showDock = dockOpen && view !== 'bench'
   return (
     <div className={`wd-root ${narrow ? 'is-narrow' : ''} ${compact ? 'is-compact' : ''} ${showDock ? 'has-dock' : ''}`} ref={rootRef}>
-      <style>{css}{fwCss}</style>
+      <style>{css}{fwCss}{creationCss}</style>
       <div className="wd-ambient" aria-hidden="true"><i /><i /><i /></div>
       <div className="wd-main">
         <header className="wd-topbar" data-window-drag="">
@@ -126,7 +128,7 @@ function Shell(props) {
           <Alerts />
           {canUndo ? <IconButton icon="undo" label="撤销上一步" onClick={undo} /> : null}
           <IconButton icon="gear" label="设置" onClick={() => setDesk({ settingsOpen: true })} />
-          {showDock ? null : <button type="button" className="wd-open-dock" onClick={() => setDesk({ dockOpen: true })}><Icon name="spark" size={14} />助手</button>}
+          {showDock || view === 'bench' ? null : <button type="button" className="wd-open-dock" onClick={() => setDesk({ dockOpen: true })}><Icon name="spark" size={14} />助手</button>}
         </header>
         {ready && view !== 'bench' ? <Island /> : null}
         <main className="wd-content" key={view}>

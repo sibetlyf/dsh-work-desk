@@ -3,6 +3,7 @@
 import React from 'react'
 import { getRootCtx, setDesk } from './desk.js'
 import { Icon, IconButton } from './ui.jsx'
+import { previewFromText, UI_CREATION_HINT } from './fw/ui-preview.js'
 
 const EMPTY_SNAPSHOT = { running: false, openState: 'cold' }
 const EMPTY_LIST = { ids: [], byId: {}, phase: 'empty', projectionsBySession: {} }
@@ -67,7 +68,7 @@ export function looksActionable(text) {
   return when.test(text) && what.test(text)
 }
 
-export function SessionDock({ useSessions, head }) {
+export function SessionDock({ useSessions, head, embedded = false, onClose, onPreview, onActivity }) {
   // 直接订 sessions.list 这个 SnapshotStore：用 useSessions(state => state) 会拿到
   // 每次调用都新建的对象，React 认为快照一直在变，于是无限重渲染——看起来就是"一直在刷新"。
   const listStore = React.useMemo(() => getRootCtx()?.get?.('sessions')?.list ?? null, [])
@@ -76,6 +77,13 @@ export function SessionDock({ useSessions, head }) {
     React.useCallback(() => (listStore ? listStore.getSnapshot() : EMPTY_LIST), [listStore]),
   )
   const [picked, setPicked] = React.useState(null)
+  const [creating, setCreating] = React.useState(false)
+  const [uiMode, setUiMode] = React.useState(embedded)
+  const creatingRef = React.useRef(false)
+  const previewRef = React.useRef(onPreview)
+  const activityRef = React.useRef(onActivity)
+  previewRef.current = onPreview
+  activityRef.current = onActivity
   const [binding, setBinding] = React.useState(null)
   const [entries, setEntries] = React.useState([])
   const [error, setError] = React.useState(null)
@@ -89,11 +97,29 @@ export function SessionDock({ useSessions, head }) {
     return list_.sort((a, b) => Number(a.blank ?? false) - Number(b.blank ?? false) || (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
   }, [list])
   const fromUrl = React.useMemo(() => sessionFromUrl(), [])
-  const sessionId = (picked && rows.some(row => row.id === picked) ? picked : null)
+  const sessionId = picked
     ?? (fromUrl && rows.some(row => row.id === fromUrl) ? fromUrl : null)
     ?? rows[0]?.id ?? null
 
+  const create = async () => {
+    if (creatingRef.current) return
+    const sessions = getRootCtx()?.get?.('sessions')
+    if (!sessions?.create) { setError('当前宿主没有会话创建能力'); return }
+    creatingRef.current = true
+    setCreating(true)
+    setError(null)
+    try {
+      const current = rows.find(row => row.id === sessionId)
+      // 不调用 startSession/openSession：只创建并绑定本面板，不切走工作台。
+      const id = await sessions.create(current?.cwd ? { cwd: current.cwd } : {})
+      setPicked(id)
+      previewRef.current?.(null)
+    } catch (err) { setError(err?.message ?? '新建会话失败，原会话保持不变') }
+    finally { creatingRef.current = false; setCreating(false) }
+  }
+
   React.useEffect(() => {
+    previewRef.current?.(null)
     if (!sessionId) return undefined
     const sessions = getRootCtx()?.get('sessions')
     if (!sessions?.retain) {
@@ -127,6 +153,26 @@ export function SessionDock({ useSessions, head }) {
 
   const messages = React.useMemo(() => messagesOf(entries), [entries])
   const snapshot = useSessionSnapshot(binding?.session ?? null)
+  const liveText = React.useMemo(() => {
+    let text = '', attempt = null
+    for (const entry of entries) {
+      const event = entry?.event
+      if (event?.type === 'assistant/message') { text = ''; attempt = null }
+      if (entry?.type !== 'transient' || event?.type !== 'assistant/live-chunk') continue
+      const chunk = event.data?.chunk
+      if (chunk?.type !== 'text-delta') continue
+      if (attempt !== event.data.attemptId) { text = ''; attempt = event.data.attemptId }
+      text += chunk.text ?? ''
+    }
+    return text.slice(-120_000)
+  }, [entries])
+
+  React.useEffect(() => {
+    const recent = [...messages].reverse().find(message => message.role === 'assistant' && previewFromText(message.text))
+    const candidate = previewFromText(liveText) ?? (recent ? previewFromText(recent.text) : null)
+    previewRef.current?.(candidate ? { ...candidate, sessionId } : null)
+  }, [liveText, messages, sessionId])
+  React.useEffect(() => { activityRef.current?.({ running: !!snapshot?.running, sessionId }) }, [snapshot?.running, sessionId])
 
   React.useEffect(() => {
     if (scroller.current) scroller.current.scrollTo({ top: scroller.current.scrollHeight, behavior: 'smooth' })
@@ -134,11 +180,12 @@ export function SessionDock({ useSessions, head }) {
 
   const deliver = async value => {
     const text_ = String(value ?? '').trim()
-    if (!text_ || !binding || sending) return
+    if (!text_ || !binding || binding.sessionId !== sessionId || sending) return
     setSending(true)
     if (value === undefined) setText('')
     try {
-      const result = await binding.session.prompt([{ type: 'text', text: text_ }], 'queue')
+      const content = uiMode ? text_ + UI_CREATION_HINT : text_
+      const result = await binding.session.prompt([{ type: 'text', text: content }], 'queue')
       if (result && result.ok === false) setError(result.error?.message ?? '发送失败')
     } catch (err) {
       setError(err?.message ?? '发送失败')
@@ -149,24 +196,26 @@ export function SessionDock({ useSessions, head }) {
   const send = () => deliver(text)
 
   return (
-    <div className="wd-chat">
+    <div className={`wd-chat ${embedded ? 'is-embedded' : ''}`} data-session-id={sessionId ?? ''}>
       <header className="wd-dock-head" data-window-drag="">
         {head}
         <span className="wd-engine is-live" title="这条就是 DSH 的会话，不是插件自己的模型调用">
           <i />{snapshot?.running ? '运行中' : '会话'}
         </span>
         <span style={{ flex: 1 }} />
-        {rows.length > 1 ? (
-          <select className="wd-session-pick" aria-label="选择会话" value={sessionId ?? ''} onChange={event => setPicked(event.target.value)}>
-            {rows.slice(0, 12).map(row => <option key={row.id} value={row.id}>{(row.title ?? row.id).slice(0, 18)}</option>)}
+        <button type="button" className="wd-btn" aria-label="新建会话" disabled={creating} onClick={create}>{creating ? '创建中…' : '＋ 新建'}</button>
+        {rows.length > 0 ? (
+          <select className="wd-session-pick" aria-label="选择会话" value={sessionId ?? ''} onChange={event => { setPicked(event.target.value); setText('') }}>
+            {sessionId && !rows.some(row => row.id === sessionId) ? <option value={sessionId}>新会话</option> : null}
+            {rows.map(row => <option key={row.id} value={row.id}>{(row.title ?? row.id).slice(0, 28)}</option>)}
           </select>
         ) : null}
-        <IconButton icon="close" label="收起对话" onClick={() => setDesk({ dockOpen: false })} />
+        <IconButton icon="close" label="收起对话" onClick={() => onClose ? onClose() : setDesk({ dockOpen: false })} />
       </header>
 
       <div className="wd-dock-scroll" ref={scroller} aria-live="polite">
         {error ? <p className="wd-msg-error">{error}</p> : null}
-        {!binding && !error ? <div className="wd-dock-intro"><p className="wd-shimmer">正在接上会话…</p></div> : null}
+        {!binding && !error ? <div className="wd-dock-intro"><p className={sessionId ? 'wd-shimmer' : ''}>{sessionId ? '正在接上会话…' : '选择已有会话继续，或点「＋ 新建」。'}</p></div> : null}
         {binding && messages.length === 0 ? (
           <div className="wd-dock-intro">
             <h3>这里就是 DSH 的会话。</h3>
@@ -188,9 +237,10 @@ export function SessionDock({ useSessions, head }) {
             ) : null}
           </div>
         ))}
+        {liveText ? <div className="wd-msg is-bot is-streaming"><p>{liveText}</p></div> : null}
         {snapshot?.running ? <div className="wd-msg is-bot"><span className="wd-shimmer">正在处理……</span></div> : null}
       </div>
-
+      {embedded ? <label className="fw-creation-mode"><input type="checkbox" checked={uiMode} onChange={event => setUiMode(event.target.checked)} />UI 创作：生成内容在左侧预览，确认后加入组件</label> : null}
       <form className="wd-composer" onSubmit={event => { event.preventDefault(); send() }}>
         <textarea
           rows={1}

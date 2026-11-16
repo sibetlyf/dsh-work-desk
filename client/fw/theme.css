@@ -21,10 +21,12 @@
   font-family: var(--fw-font);
 }
 
-/* 工作台页容器：留在顶栏下方，滚动交给内部网格 */
-.wd-bench-page { overflow: hidden; position: relative; }
-.wd-bench-page > .fw-shell { height: 100%; }
-.wd-bench-page > .fw-shell > .wd-fw { height: 100%; }
+/* 继承 .wd-page 的绝对定位边界：relative 会让页面被内容撑高，
+ * 根节点 overflow:clip 后，底部虽在 grid 内却永远无法滚进视口。
+ * 页的可用内容高度 → shell → 工作台 → grid，全链允许收缩。 */
+.wd-bench-page { position: absolute; inset: 0; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.wd-bench-page > .fw-shell { flex: 1 1 0; min-height: 0; min-width: 0; }
+.wd-bench-page > .fw-shell > .wd-fw { height: auto; }
 
 /* 右侧会话栏：只在工作台页出现，窄屏收成抽屉 */
 .fw-shell { display: flex; gap: 12px; min-height: 0; overflow: hidden; }

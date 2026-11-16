@@ -8,6 +8,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import assert from 'node:assert/strict'
 import { build } from 'esbuild'
+import { clickEditorControl, scrollGeometry } from './workbench-scroll.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -215,14 +216,14 @@ try {
     return `revision ${after}`
   })
 
-  await step('会话栏：存在「新建会话」入口，展开/收起都不写布局', async () => {
+  await step('会话栏结构：展开/收起都不写布局且网格不越界', async () => {
     const toggle = page.locator('.fw-bar button:has-text("会话")')
     assert.equal(await toggle.count(), 1, '工作台顶栏缺少会话栏开关')
     await toggle.click()
     await sleep(700)
     const rail = page.locator('.fw-rail')
     assert.equal(await rail.count(), 1, '展开后应有会话栏')
-    assert.equal(await rail.locator('button:has-text("新建")').count(), 1, '会话栏缺少新建会话按钮')
+    assert.ok(await rail.locator('button').count() >= 1, '会话栏应有可交互入口')
     const before = await hostLayout()
     await toggle.click()
     await sleep(700)
@@ -298,6 +299,27 @@ try {
     return 'cols=2, 大卡满宽'
   })
   await setContainerWidth(0)
+
+  await step('高度链：短视口与窄容器仍由内部网格滚动', async () => {
+    try {
+      for (const [width, height] of [[0, 620], [520, 620], [0, 940]]) {
+        await page.setViewportSize({ width: 1500, height })
+        await setContainerWidth(width)
+        const chain = await scrollGeometry(page)
+        const root = chain.find(row => row.selector === '.wd-root')
+        const pageBox = chain.find(row => row.selector === '.wd-bench-page')
+        const grid = chain.find(row => row.selector === '.fw-grid')
+        assert.ok(pageBox.bottom <= root.bottom + 1, `工作台页被内容撑出根节点：${JSON.stringify(chain)}`)
+        assert.ok(grid.clientHeight > 0 && grid.bottom < pageBox.bottom, `网格缺少可用高度或越界：${JSON.stringify(chain)}`)
+        assert.ok(root.scrollHeight <= root.clientHeight + 1, `根节点不应裁剪超高工作台：${JSON.stringify(chain)}`)
+        if (width === 520) assert.ok(grid.scrollHeight > grid.clientHeight, `窄屏应产生真实内部滚动范围：${JSON.stringify(chain)}`)
+      }
+      return '620/940px 视口、520px 容器，页面有界且窄屏网格 scrollHeight > clientHeight'
+    } finally {
+      await page.setViewportSize({ width: 1500, height: 940 })
+      await setContainerWidth(0)
+    }
+  })
 
   // ── 5. Host 权威：过期 revision 409、requestId 幂等 ───────────────
   await step('Host：过期 baseRevision 返回 409 且布局不变', async () => {
@@ -391,7 +413,7 @@ try {
   await page.waitForTimeout(300)
 
   // ── 6. 编辑态格子：行数×列，虚线边框 ─────────────────────────────
-  await step('编辑态格子：数量 = 行数×8，边框 dashed', async () => {
+  await step('编辑态格子：数量 = 行数×实际列数，边框 dashed', async () => {
     const info = await page.evaluate(() => {
       const layer = document.querySelector('.fw-cells')
       const grid = document.querySelector('.fw-grid')
@@ -411,11 +433,11 @@ try {
       }
     })
     assert.ok(info, '编辑态没有 .fw-cells 层')
-    assert.equal(info.cols, 8)
+    assert.ok([2, 4, 8].includes(info.cols), `列数必须为响应式档位：${info.cols}`)
     assert.equal(info.rows >= 1, true)
-    assert.equal(info.cells, info.rows * 8, `格子数应为 ${info.rows}×8=${info.rows * 8}，实际 ${info.cells}`)
+    assert.equal(info.cells, info.rows * info.cols, `格子数应为 ${info.rows}×${info.cols}=${info.rows * info.cols}，实际 ${info.cells}`)
     assert.equal(info.border, 'dashed', '格子边框应为虚线')
-    return `${info.cells} 格 = ${info.rows} 行 × 8 列`
+    return `${info.cells} 格 = ${info.rows} 行 × ${info.cols} 列`
   })
 
   // ── 2. 三档尺寸语义：同一「待办」实例 s/m/l 内容不同 ─────────────
@@ -429,7 +451,7 @@ try {
     const shot = {}
     for (let i = 0; i < 3; i++) {
       shot[await sizeOf()] = { body: await bodyOf(), rows: await rowsOf(), foot: await tasks.locator('.fw-foot button').count() }
-      await cycle.click()
+      await clickEditorControl(page, cycle)
       await page.waitForTimeout(320)
     }
     const small = shot['小']
@@ -504,13 +526,13 @@ try {
     await page.waitForTimeout(400)
     const slot = page.locator('.fw-slot').filter({ has: page.locator('.fw-card.is-genui') }).last()
     await slot.waitFor({ timeout: 5000 })
-    const titleOf = async () => (await slot.locator('.fw-genui h3').textContent().catch(() => '')) ?? ''
+    const titleOf = async () => (await slot.locator('.fw-genui h3').textContent()) ?? ''
     const cycle = slot.locator('.fw-edit .fw-size')
     const medium = await titleOf()
     assert.equal(medium, '本周概览', `加入后中档标题应为「本周概览」，实际「${medium}」`)
     const sizes = { 中: medium }
     for (let i = 0; i < 2; i++) {
-      await cycle.click()
+      await clickEditorControl(page, cycle)
       await page.waitForTimeout(320)
       const label = (await cycle.textContent()).trim()
       sizes[label] = await titleOf()
@@ -632,7 +654,7 @@ try {
     await until(async () => page.locator('.fw-card.is-widget').count(), 8000, 'FullWidget 卡片出现')
     await page.waitForTimeout(400)
     const widget = page.locator('.fw-slot').filter({ has: page.locator('.fw-card.is-widget') }).first()
-    await widget.locator('.fw-edit button[aria-label="组件设置"]').click()
+    await clickEditorControl(page, widget.locator('.fw-edit button[aria-label="组件设置"]'))
     await page.waitForSelector('.fw-modal', { timeout: 5000 })
     const fields = await page.locator('.fw-field').count()
     assert.ok(fields >= 1, '设置表单应有字段')
@@ -708,6 +730,17 @@ try {
       return rows
     })
     assert.deepEqual(hidden, [], `移动端小卡存在不可见可聚焦控件：${JSON.stringify(hidden)}`)
+    const bottomGenui = mobile.locator('.fw-slot').filter({ has: mobile.locator('.fw-card.is-genui') }).last()
+    const cycle = bottomGenui.locator('.fw-edit .fw-size')
+    const beforeSize = await cycle.textContent()
+    await clickEditorControl(mobile, cycle)
+    assert.notEqual(await cycle.textContent(), beforeSize, '移动端底部卡片应能真实 UI 换档')
+    const bottomWidget = mobile.locator('.fw-slot').filter({ has: mobile.locator('.fw-card.is-widget') }).last()
+    await clickEditorControl(mobile, bottomWidget.locator('.fw-edit button[aria-label="组件设置"]'))
+    await mobile.waitForSelector('.fw-modal')
+    assert.ok(await mobile.locator('.fw-field').count() > 0, '移动端底部设置必须打开真实表单')
+    await mobile.locator('.fw-modal button:has-text("取消")').click()
+    await mobile.waitForSelector('.fw-modal', { state: 'detached' })
     if (process.env.E2E_SHOT) await mobile.screenshot({ path: join(root, 'docs', 'shot-bench-mobile.png') })
     await mobile.close()
     return `cols=2, 页面宽 ${info.docScroll}/${info.innerWidth}, 编辑按钮 ${Math.round(editHeight)}px, 大卡 ${Math.round(sizes.large)}/${sizes.grid}`

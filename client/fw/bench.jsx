@@ -128,6 +128,12 @@ export function WorkbenchView() {
   const [now, setNow] = React.useState(() => new Date())
   const [configFor, setConfigFor] = React.useState(null)
   const [railOpen, setRailOpen] = React.useState(true)
+  const [preview, setPreview] = React.useState(null)
+  const [previewSize, setPreviewSize] = React.useState('m')
+  const [addedPreview, setAddedPreview] = React.useState('')
+  const activityRef = React.useRef({ running: false })
+  const onActivity = React.useCallback(activity => { activityRef.current = activity }, [])
+  const onPreview = React.useCallback(candidate => setPreview(prev => JSON.stringify(prev) === JSON.stringify(candidate) ? prev : candidate), [])
   const [columns, setColumns] = React.useState(8)
   const saveTimer = React.useRef(null)
   const revisionRef = React.useRef(0)
@@ -199,10 +205,14 @@ export function WorkbenchView() {
       }
     }
     load()
-    const timer = setInterval(load, 15_000)
+    // 活跃会话里的工具改动要即时反映到工作台；只读同步，不产生额外 revision。
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible' && activityRef.current.running) load()
+    }, 1000)
+    const idleTimer = setInterval(load, 15_000)
     const onFocus = () => load()
     window.addEventListener('focus', onFocus)
-    return () => { live = false; clearInterval(timer); window.removeEventListener('focus', onFocus) }
+    return () => { live = false; clearInterval(timer); clearInterval(idleTimer); window.removeEventListener('focus', onFocus) }
   }, [])
 
   // 只有用户改动过（dirty）才写回；读回同一份布局不产生写入。
@@ -409,6 +419,23 @@ export function WorkbenchView() {
 
         {editing ? <p className="fw-hint">拖动卡片换位置：虚线格子是可用位置；右上角切 小／中／大 或移除。</p> : null}
 
+        {preview ? (
+          <section className="fw-live-preview" aria-label="生成 UI 实时预览">
+            <header>
+              <strong>{preview.complete ? '生成 UI 预览' : '生成中 · 实时预览'}</strong>
+              <div className="fw-seg" aria-label="预览尺寸">
+                {Object.entries(SIZES).map(([size, meta]) => <button type="button" key={size} aria-pressed={previewSize === size} onClick={() => setPreviewSize(size)}>{meta.label}</button>)}
+              </div>
+              <button type="button" className="fw-btn" disabled={!preview.complete || addedPreview === JSON.stringify(preview.spec)} onClick={() => {
+                if (layout.atoms.length >= 24) { toast('最多 24 个组件位', { error: true }); return }
+                add({ type: 'genui', size: previewSize, spec: preview.spec })
+                setAddedPreview(JSON.stringify(preview.spec))
+              }}>{addedPreview === JSON.stringify(preview.spec) ? '已加入组件' : '＋ 加入组件'}</button>
+            </header>
+            <div className={`fw-preview-body is-${previewSize}`}><GenuiAtom spec={preview.spec} size={previewSize} /></div>
+            {!preview.complete ? <small>已解析的内容会逐步出现；规格完整后才能加入。</small> : null}
+          </section>
+        ) : null}
         <div className="fw-grid" aria-label="工作台组件网格" style={{ '--fw-cols': columns }}>
           {editing ? (
             <div className="fw-cells" aria-hidden="true" style={{ gridRow: `1 / span ${plan.rows}` }}>
@@ -518,7 +545,7 @@ export function WorkbenchView() {
           />
         ) : null}
       </div>
-        {railOpen ? <SessionRail /> : null}
+        {railOpen ? <SessionRail onClose={() => { railTouched.current = true; setRailOpen(false) }} onPreview={onPreview} onActivity={onActivity} /> : null}
       </div>
     </div>
   )
