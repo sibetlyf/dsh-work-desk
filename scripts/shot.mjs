@@ -111,6 +111,8 @@ const server = http.createServer(async (req, res) => {
 })
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
 const base = `http://127.0.0.1:${server.address().port}`
+const fwProbe = await fetch(`${base}/work-desk/fw/file?id=airquality&name=index.html`)
+console.log('fw 文件探测：', fwProbe.status, (await fwProbe.text()).slice(0, 60).replace(/\n/g, ' '))
 
 // playwright 装在全局，ESM 不认 NODE_PATH，按绝对路径引
 const playwrightEntry = process.env.PLAYWRIGHT_ENTRY || 'E:/NodeJS/node_global/node_modules/playwright/index.js'
@@ -196,11 +198,70 @@ if (!(tasksL.length > tasksS.length)) throw new Error('大卡信息量应大于�
 if (!(tasksS.length < tasksM.length || tasksS.split(' ').length <= tasksM.split(' ').length)) throw new Error('小卡应比中卡精简')
 await slotOf('待办').locator('.fw-edit button:has-text("中")').click()
 await page.waitForTimeout(300)
+await page.click('.fw-bar button:has-text("完成编辑")')
+await page.waitForTimeout(300)
 
 // 主题切换
 await page.click('.fw-bar button:has-text("书桌上的纸")')
 await page.waitForTimeout(400)
 await page.screenshot({ path: join(outDir, 'shot-bench-paper.png') })
+await page.click('.fw-bar button:has-text("量被画出来")')
+await page.waitForTimeout(300)
+
+// FullWidget 全部组件：清单、icon 资源、加入工作台后真实渲染
+await page.click('.fw-bar button:has-text("添加组件")')
+await page.waitForSelector('.fw-widgetgrid', { timeout: 15_000 })
+await page.waitForTimeout(700)
+const fwInfo = await page.evaluate(() => {
+  const chips = [...document.querySelectorAll('.fw-widgetchip')]
+  const icons = [...document.querySelectorAll('.fw-widgetchip img')]
+  return {
+    chips: chips.length,
+    iconsLoaded: icons.filter(img => img.complete && img.naturalWidth > 0).length,
+    first: chips[0]?.textContent ?? '',
+  }
+})
+console.log('FullWidget 组件清单：', JSON.stringify(fwInfo))
+if (fwInfo.chips < 30) throw new Error(`FullWidget 组件应全部可用，实际 ${fwInfo.chips}`)
+
+await page.locator('.fw-widgetchip').filter({ hasText: '日历' }).first().click()
+await page.waitForFunction(() => {
+  const frames = [...document.querySelectorAll('.fw-card.is-widget iframe')]
+  const last = frames.at(-1)
+  return Boolean(last?.contentDocument?.body?.textContent?.trim())
+}, { timeout: 20_000 })
+await page.waitForTimeout(600)
+await page.screenshot({ path: join(outDir, 'shot-bench-fullwidget.png') })
+
+// 生成式卡片
+await page.click('.fw-bar button:has-text("添加组件")')
+await page.locator('.fw-panel-section').filter({ hasText: '生成式卡片' }).locator('button:has-text("加入工作台")').click()
+await page.waitForSelector('.fw-genui', { timeout: 10_000 })
+await page.waitForTimeout(300)
+const genui = await page.evaluate(() => {
+  const node = document.querySelector('.fw-genui')
+  return { title: node?.querySelector('h3')?.textContent ?? '', hasChart: !!node?.querySelector('.fw-gchart') }
+})
+console.log('生成式卡片：', JSON.stringify(genui))
+await page.screenshot({ path: join(outDir, 'shot-bench-genui.png') })
+
+// 编辑态：格子可见
+await page.click('.fw-bar button:has-text("编辑布局")')
+await page.waitForTimeout(300)
+const cells = await page.evaluate(() => {
+  const layer = document.querySelector('.fw-cells')
+  const grid = document.querySelector('.fw-grid')
+  if (!layer) return { cells: 0 }
+  const styles = getComputedStyle(grid)
+  return {
+    cells: layer.children.length,
+    cols: styles.gridTemplateColumns.split(' ').length,
+    firstCellBorder: getComputedStyle(layer.children[0]).borderTopStyle,
+  }
+})
+console.log('编辑态格子：', JSON.stringify(cells))
+if (!cells.cells || cells.firstCellBorder !== 'dashed') throw new Error('编辑态应显示虚线格子')
+await page.screenshot({ path: join(outDir, 'shot-bench-edit.png') })
 console.log('bench ok')
 
 await browser.close()

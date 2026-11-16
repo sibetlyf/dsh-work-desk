@@ -1,4 +1,7 @@
 // dsh-work-desk host 半片：/work-desk/* 接口、定时同步、模型调用。
+import { readFile, readdir, stat } from 'node:fs/promises'
+import { dirname, join, normalize, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { assistantModelOverride, callModel, chatPrompts, defaultSelection, extractJson, modelInfo, modelStatus, setAssistantModel } from './ai.js'
 import { buildIcs, parseIcs } from './calendar.js'
 import { briefInput, generateBrief } from './brief.js'
@@ -14,6 +17,53 @@ import { snippetOf } from './mail/mime.js'
 import { registerTools } from './tools.js'
 
 const MAX_JSON = 4_000_000
+
+// 随包分发的 FullWidget 原生组件（38 个，GPL-3.0，独立目录，见 vendor/fullwidget-widgets/LICENSE）
+const PKG_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const FW_DIR = join(PKG_DIR, 'vendor', 'fullwidget-widgets')
+const FW_SDK_DIR = join(PKG_DIR, 'vendor', 'fullwidget-sdk')
+const FW_ALLOWED = new Set(['index.html', 'style.css', 'main.js', 'icon.svg'])
+const FW_THEMES = ['instrument', 'paper', 'type']
+let fwCache = null
+
+/** 扫描随包分发的 FullWidget 组件；未知或损坏的目录直接跳过。 */
+async function fwWidgets() {
+  if (fwCache) return fwCache
+  const rows = []
+  let dirs = []
+  try {
+    dirs = (await readdir(FW_DIR, { withFileTypes: true })).filter(entry => entry.isDirectory()).map(entry => entry.name)
+  } catch {
+    fwCache = rows
+    return rows
+  }
+  for (const dir of dirs.sort()) {
+    try {
+      const manifest = JSON.parse((await readFile(join(FW_DIR, dir, 'widget.json'), 'utf8')).replace(/^\uFEFF/, ''))
+      const size = manifest.size ?? {}
+      rows.push({
+        id: dir,
+        name: manifest.name ?? dir,
+        description: manifest.description ?? {},
+        category: manifest.category ?? 'info',
+        size: { width: Number(size.width) || 260, height: Number(size.height) || 160, minWidth: Number(size.minWidth) || 160, minHeight: Number(size.minHeight) || 100 },
+        settings: Array.isArray(manifest.settings) ? manifest.settings : [],
+      })
+    } catch {
+      // 缺 manifest 或 JSON 不合法：不作为组件提供
+    }
+  }
+  fwCache = rows
+  return rows
+}
+
+/** 组件文件的合法路径：只允许组件目录内的白名单文件。 */
+function fwPath(id, name) {
+  if (typeof id !== 'string' || !/^[a-z0-9-]+$/.test(id)) return null
+  if (!FW_ALLOWED.has(name)) return null
+  const path = normalize(join(FW_DIR, id, name))
+  return path.startsWith(FW_DIR) ? path : null
+}
 
 function json(res, status, body) {
   res.statusCode = status
@@ -281,6 +331,45 @@ async function route(ctx, desk, req, res) {
     }
     if (path === 'settings') {
       return json(res, 200, publicSettings(await desk.settings.read()))
+    }
+    if (path === 'fw/widgets') {
+      const rows = await fwWidgets()
+      return json(res, 200, { widgets: rows, dir: FW_DIR })
+    }
+    if (path === 'fw/file') {
+      const id = String(url.searchParams.get('id') ?? '')
+      const name = String(url.searchParams.get('name') ?? '')
+      const file = fwPath(id, name)
+      if (!file) return json(res, 400, { error: '文件不在允许范围' })
+      try {
+        const info = await stat(file)
+        if (info.size > 2_000_000) return json(res, 413, { error: '文件过大' })
+        const body = await readFile(file)
+        res.statusCode = 200
+        res.setHeader('content-type', name.endsWith('.svg') ? 'image/svg+xml; charset=utf-8' : name.endsWith('.css') ? 'text/css; charset=utf-8' : name.endsWith('.json') ? 'application/json; charset=utf-8' : 'text/javascript; charset=utf-8')
+        res.setHeader('cache-control', 'public, max-age=3600')
+        res.end(body)
+      } catch {
+        return json(res, 404, { error: '文件不存在' })
+      }
+    }
+    if (path === 'fw/sdk') {
+      const name = String(url.searchParams.get('name') ?? '')
+      const path2 = name === 'base.css'
+        ? join(FW_SDK_DIR, 'base.css')
+        : FW_THEMES.includes(name.split('/')[1]?.split('.')[0] ?? '') && /^themes\/(instrument|paper|type)\/theme\.css$/.test(name)
+          ? join(FW_SDK_DIR, 'themes', name.split('/')[1], 'theme.css')
+          : null
+      if (!path2) return json(res, 400, { error: 'SDK 文件不在允许范围' })
+      try {
+        const body = await readFile(path2)
+        res.statusCode = 200
+        res.setHeader('content-type', name.endsWith('.css') ? 'text/css; charset=utf-8' : 'application/json; charset=utf-8')
+        res.setHeader('cache-control', 'public, max-age=3600')
+        return res.end(body)
+      } catch {
+        return json(res, 404, { error: 'SDK 文件不存在' })
+      }
     }
     return json(res, 404, { error: '接口不存在' })
   }
