@@ -1,0 +1,414 @@
+/* 工作台（原子桌面）样式。
+ *
+ * 外观语言来自 FullWidget 的 SDK 与三套官方主题（sdk/base.css、sdk/themes/*）：
+ * 卡片材质、数字排版、控件与圆角都沿用它的变量体系，这里只是把作用域收到 .wd-fw 里，
+ * 避免 html/body 级规则影响 DSH 导航、会话和其它插件。
+ * 来源：hmgvibe/FullWidget，sdk/ 与 themes/ 为 MIT；声明见 vendor/fullwidget/NOTICE.md。
+ */
+
+.wd-fw {
+  --fw-cols: 8;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  height: 100%;
+  padding: 14px 18px 18px;
+  container-type: inline-size;
+  overflow: clip;
+  background: var(--fw-stage);
+  color: var(--fw-fg);
+  font-family: var(--fw-font);
+}
+
+/* 工作台页容器：留在顶栏下方，滚动交给内部网格 */
+.wd-bench-page { overflow: hidden; }
+.wd-bench-page > .wd-fw { height: 100%; }
+
+/* ── 主题：三套官方外观的变量落地 ─────────────────────────────── */
+.wd-fw[data-fw-theme="instrument"] {
+  --fw-stage: radial-gradient(ellipse at 78% 0%, #46516066, transparent 55%), #1b222b;
+  --fw-font: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", sans-serif;
+  --fw-font-num: "Cascadia Mono", "Cascadia Code", Consolas, monospace;
+  --fw-num-weight: 400;
+  --fw-display-weight: 300;
+  --fw-display-tracking: -.03em;
+  --fw-card: rgba(16, 18, 22, .74);
+  --fw-card-solid: #101216;
+  --fw-fg: #e9ecef;
+  --fw-fg-muted: rgba(233, 236, 239, .58);
+  --fw-accent: #7de2c4;
+  --fw-on-accent: #0b1512;
+  --fw-border: rgba(255, 255, 255, .07);
+  --fw-rule: rgba(255, 255, 255, .08);
+  --fw-track: rgba(255, 255, 255, .09);
+  --fw-control: rgba(255, 255, 255, .06);
+  --fw-hover: rgba(255, 255, 255, .07);
+  --fw-radius: 22px;
+  --fw-pad: 18px;
+  --fw-shadow: 0 10px 26px rgba(0, 0, 0, .34);
+  --fw-warn: #ffb547;
+  color-scheme: dark;
+}
+
+.wd-fw[data-fw-theme="paper"] {
+  --fw-stage: radial-gradient(ellipse at 82% 4%, #d7c3a3aa, transparent 58%), #b7b0a2;
+  --fw-font: "Microsoft YaHei UI", "Microsoft JhengHei UI", "Noto Sans SC", sans-serif;
+  --fw-font-num: Georgia, "Noto Serif TC", serif;
+  --fw-font-title: "Noto Serif SC", "Source Han Serif SC", STSong, serif;
+  --fw-num-weight: 400;
+  --fw-display-weight: 400;
+  --fw-display-tracking: -.01em;
+  --fw-card: #f3eee3;
+  --fw-card-solid: #f3eee3;
+  --fw-fg: #1f1c18;
+  --fw-fg-muted: rgba(31, 28, 24, .64);
+  --fw-accent: #c23b2b;
+  --fw-on-accent: #fff8ef;
+  --fw-border: rgba(31, 28, 24, .06);
+  --fw-rule: rgba(31, 28, 24, .16);
+  --fw-track: rgba(31, 28, 24, .1);
+  --fw-control: rgba(31, 28, 24, .04);
+  --fw-hover: rgba(31, 28, 24, .06);
+  --fw-radius: 6px;
+  --fw-pad: 18px;
+  --fw-shadow: 0 1px 2px rgba(0, 0, 0, .22), 0 8px 16px rgba(0, 0, 0, .3);
+  --fw-warn: var(--fw-accent);
+  color-scheme: light;
+}
+
+.wd-fw[data-fw-theme="type"] {
+  --fw-stage: radial-gradient(ellipse at 20% 0%, #5c6f8a55, transparent 62%), #101a28;
+  --fw-font: "Segoe UI Variable Display", "Segoe UI", "Microsoft YaHei UI", sans-serif;
+  --fw-font-num: var(--fw-font);
+  --fw-num-weight: 600;
+  --fw-display-weight: 200;
+  --fw-display-tracking: -.035em;
+  --fw-card: rgba(10, 15, 36, .0);
+  --fw-card-solid: #0a0f24;
+  --fw-fg: #ffffff;
+  --fw-fg-muted: rgba(255, 255, 255, .72);
+  --fw-accent: #9ccfff;
+  --fw-on-accent: #04131c;
+  --fw-border: transparent;
+  --fw-rule: rgba(255, 255, 255, .3);
+  --fw-track: rgba(255, 255, 255, .22);
+  --fw-control: rgba(255, 255, 255, .1);
+  --fw-hover: rgba(255, 255, 255, .1);
+  --fw-radius: 18px;
+  --fw-pad: 12px;
+  --fw-shadow: none;
+  --fw-warn: #ffc46b;
+  color-scheme: dark;
+}
+
+.wd-fw[data-fw-theme="type"] .fw-card { box-shadow: none; backdrop-filter: none; }
+.wd-fw[data-fw-theme="type"] .fw-card:hover,
+.wd-fw[data-fw-theme="type"] .fw-card:focus-within { background: rgba(8, 12, 30, .42); }
+
+/* ── 顶栏 ────────────────────────────────────────────────────── */
+.fw-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex: none;
+  color: var(--fw-fg);
+}
+.fw-bar h1 { margin: 0; font-size: 19px; font-weight: 500; letter-spacing: -.01em; }
+.fw-bar .fw-sub { color: var(--fw-fg-muted); font-size: 11px; }
+.fw-bar .fw-grow { flex: 1; }
+.fw-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--fw-control);
+  border: 1px solid var(--fw-border);
+  flex-wrap: wrap;
+}
+.fw-seg button {
+  height: 26px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--fw-fg-muted);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.fw-seg button[aria-pressed="true"] { background: var(--fw-card-solid); color: var(--fw-fg); }
+.wd-fw[data-fw-theme="instrument"] .fw-seg button[aria-pressed="true"],
+.wd-fw[data-fw-theme="type"] .fw-seg button[aria-pressed="true"] { background: rgba(255, 255, 255, .14); }
+
+.fw-btn {
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--fw-border);
+  border-radius: 9px;
+  background: var(--fw-control);
+  color: var(--fw-fg);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.fw-btn:hover { background: var(--fw-hover); }
+.fw-btn.is-on { background: var(--fw-accent); color: var(--fw-on-accent); border-color: transparent; font-weight: 600; }
+
+/* ── 网格：8 列，1×1 / 2×1 / 4×3 ─────────────────────────────── */
+.fw-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--fw-cols), minmax(0, 1fr));
+  grid-auto-rows: var(--fw-cell);
+  gap: var(--fw-gap);
+  align-content: start;
+  overflow-y: auto;
+  padding-bottom: 4px;
+  --fw-gap: 12px;
+  --fw-cell: clamp(104px, calc((100cqw - 36px - 7 * var(--fw-gap)) / 8), 168px);
+}
+
+.fw-slot { position: relative; min-width: 0; min-height: 0; }
+.fw-slot.is-s { grid-column: span 1; grid-row: span 1; }
+.fw-slot.is-m { grid-column: span 2; grid-row: span 1; }
+.fw-slot.is-l { grid-column: span 4; grid-row: span 3; }
+
+/* ── 卡片：FullWidget body 的材质 ─────────────────────────────── */
+.fw-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  min-width: 0;
+  padding: var(--fw-pad);
+  border-radius: var(--fw-radius);
+  background: var(--fw-card);
+  box-shadow: var(--fw-shadow), inset 0 0 0 1px var(--fw-border);
+  color: var(--fw-fg);
+  overflow: hidden;
+  font-family: var(--fw-font);
+}
+
+.fw-head {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  flex: none;
+  min-width: 0;
+}
+.fw-head h2 {
+  margin: 0;
+  font-family: var(--fw-font-title, var(--fw-font));
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fw-head .fw-meta { margin-left: auto; color: var(--fw-fg-muted); font-size: 10px; white-space: nowrap; }
+.fw-body { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+
+/* FullWidget kit：label / display / num / rule / check / track / btn */
+.fw-label { font-size: 11px; color: var(--fw-fg-muted); letter-spacing: .01em; white-space: nowrap; }
+.fw-num { font-family: var(--fw-font-num); font-weight: var(--fw-num-weight); font-variant-numeric: tabular-nums; }
+.fw-display {
+  font-family: var(--fw-font-num);
+  font-weight: var(--fw-display-weight);
+  letter-spacing: var(--fw-display-tracking);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.fw-rule { height: 1px; margin: 0; border: 0; background: var(--fw-rule); flex: none; }
+.fw-check {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1.5px solid var(--fw-fg-muted);
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+}
+.fw-check[aria-pressed="true"] { background: var(--fw-accent); border-color: var(--fw-accent); }
+.fw-check[aria-pressed="true"]::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 7px;
+  border: solid var(--fw-on-accent);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.wd-fw[data-fw-theme="paper"] .fw-check { border-radius: 3px; border-color: var(--fw-fg); }
+.wd-fw[data-fw-theme="paper"] .fw-check[aria-pressed="true"] { background: transparent; }
+.wd-fw[data-fw-theme="paper"] .fw-check[aria-pressed="true"]::after { border-color: var(--fw-fg); }
+
+/* ── 组件内容：同一组件在三个尺寸下的不同信息层级 ───────────── */
+.fw-hero { flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0; }
+.fw-hero .fw-display { font-size: clamp(30px, 9cqw, 54px); }
+.fw-hero div { min-width: 0; }
+.fw-hero strong { display: block; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fw-hero small { display: block; margin-top: 4px; color: var(--fw-fg-muted); font-size: 10px; }
+
+.fw-list { display: flex; flex-direction: column; gap: 2px; min-height: 0; overflow: hidden; flex: 1; }
+.fw-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; min-width: 0; font-size: 12px; }
+.fw-row time { flex: none; width: 36px; color: var(--fw-fg-muted); font-family: var(--fw-font-num); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.fw-row .fw-row-main { flex: 1; min-width: 0; }
+.fw-row b { display: block; font-weight: 500; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fw-row small { display: block; margin-top: 2px; color: var(--fw-fg-muted); font-size: 9.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fw-row .fw-dot { flex: none; width: 5px; height: 5px; border-radius: 50%; background: var(--fw-fg-muted); }
+.fw-row.is-now { background: var(--fw-hover); border-radius: 8px; margin: 0 -6px; padding-left: 6px; padding-right: 6px; }
+.fw-row.is-now .fw-dot { background: var(--fw-accent); }
+.fw-row.is-muted { opacity: .5; }
+
+.fw-quote { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 4px 0; min-width: 0; }
+.fw-quote .fw-quote-name { flex: 1; min-width: 0; font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fw-quote .fw-num { font-size: 13px; }
+.fw-quote .fw-pct { width: 52px; text-align: right; font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.fw-up { color: #e0a49c; }
+.fw-down { color: #9ccdb2; }
+.wd-fw[data-fw-theme="paper"] .fw-up { color: #b3261e; }
+.wd-fw[data-fw-theme="paper"] .fw-down { color: #1b6b46; }
+
+.fw-brief { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 6px; }
+.fw-brief h3 { margin: 0; font-family: var(--fw-font-title, var(--fw-font)); font-size: 14px; font-weight: 500; line-height: 1.4; }
+.fw-brief p { margin: 0; font-size: 11px; line-height: 1.65; color: var(--fw-fg-muted); }
+.fw-brief .fw-clamp { display: -webkit-box; -webkit-line-clamp: var(--fw-lines, 3); -webkit-box-orient: vertical; overflow: hidden; }
+
+.fw-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 7px;
+  border-top: 1px solid var(--fw-rule);
+  color: var(--fw-fg-muted);
+  font-size: 9.5px;
+}
+.fw-foot button { margin-left: auto; border: 0; background: none; color: var(--fw-accent); font: inherit; font-size: 10px; cursor: pointer; }
+
+.fw-empty { color: var(--fw-fg-muted); font-size: 11px; padding: 2px 0; }
+.fw-link { border: 0; background: none; color: inherit; font: inherit; text-align: left; padding: 0; cursor: pointer; display: contents; }
+
+/* 可点击的列表行：按钮外观全部重置，只保留行本身的排版 */
+.fw-row-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+.fw-row-btn:hover b { text-decoration: underline; }
+
+/* 24 小时进度条（时钟的大尺寸） */
+.fw-track { height: 4px; border-radius: 99px; background: var(--fw-track); overflow: hidden; flex: none; }
+.fw-track > i { display: block; height: 100%; border-radius: inherit; background: var(--fw-accent); }
+
+/* 小卡只留一句判断：1×1 里不堆两行残句 */
+.wd-fw .fw-slot.is-s .fw-card { padding: 14px; gap: 5px; }
+.wd-fw .fw-slot.is-s .fw-head h2 { font-size: 11px; }
+.wd-fw .fw-slot.is-s .fw-hero { overflow: hidden; }
+.wd-fw .fw-slot.is-s .fw-hero small,
+.wd-fw .fw-slot.is-s .fw-hero strong {
+  font-size: 10px;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.wd-fw .fw-slot.is-s .fw-hero small { max-height: 13px; }
+.wd-fw .fw-slot.is-s .fw-hero div { max-width: calc(100% - 56px); }
+.wd-fw .fw-slot.is-s .fw-hero .fw-display { flex: none; }
+
+/* 中卡：列表行只保留可扫读的两级信息，超出的由大卡承担 */
+.wd-fw .fw-slot.is-m .fw-row { padding: 3px 0; }
+.wd-fw .fw-slot.is-m .fw-row b { font-size: 11.5px; }
+.wd-fw .fw-slot.is-m .fw-row small { font-size: 9px; }
+.wd-fw .fw-slot.is-m .fw-body { overflow: hidden; }
+
+/* ── 编辑态 ─────────────────────────────────────────────────── */
+.wd-fw.is-editing .fw-slot { outline: 1px dashed color-mix(in srgb, var(--fw-accent) 65%, transparent); outline-offset: 2px; border-radius: calc(var(--fw-radius) + 2px); }
+.wd-fw.is-editing .fw-card .fw-body,
+.wd-fw.is-editing .fw-card .fw-foot { pointer-events: none; }
+.fw-edit {
+  position: absolute;
+  inset: -11px 4px auto auto;
+  display: none;
+  align-items: center;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--fw-card-solid) 92%, #000 8%);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .35);
+  z-index: 3;
+  color: var(--fw-fg);
+}
+.fw-slot.is-editing .fw-edit { display: flex; }
+.fw-edit button {
+  height: 22px;
+  min-width: 22px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, .1);
+  color: #fff;
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+.wd-fw[data-fw-theme="paper"] .fw-edit { background: #2c2a25; }
+.wd-fw[data-fw-theme="paper"] .fw-edit button { color: #f6f2ea; }
+.fw-edit button[aria-pressed="true"] { background: var(--fw-accent); color: var(--fw-on-accent); }
+.fw-edit .fw-drag { cursor: grab; background: rgba(255, 255, 255, .18); }
+.fw-slot.is-dragging { opacity: .35; }
+.fw-slot.is-drop { outline: 2px solid var(--fw-accent); outline-offset: 2px; }
+.fw-hint { flex: none; font-size: 10px; color: var(--fw-fg-muted); }
+
+/* ── 响应式：按业务容器宽度，而不是整窗 ─────────────────────── */
+@container (max-width: 880px) {
+  .fw-grid {
+    --fw-cols: 4;
+    --fw-cell: clamp(112px, calc((100cqw - 36px - 3 * var(--fw-gap)) / 4), 190px);
+  }
+  .fw-slot.is-l { grid-column: span 4; grid-row: span 3; }
+}
+@container (max-width: 560px) {
+  .fw-grid {
+    --fw-cols: 2;
+    --fw-cell: clamp(118px, calc((100cqw - 36px - var(--fw-gap)) / 2), 210px);
+  }
+  .fw-slot.is-s { grid-column: span 1; grid-row: span 1; }
+  .fw-slot.is-m { grid-column: span 2; grid-row: span 1; }
+  /* 手机上的大卡：满宽，仍保持三段信息层级，不按桌面长宽比压缩 */
+  .fw-slot.is-l { grid-column: span 2; grid-row: span 3; }
+  .fw-bar h1 { font-size: 16px; }
+  .fw-bar .fw-sub { display: none; }
+  .fw-edit button { height: 30px; min-width: 30px; }
+  .fw-foot { font-size: 9px; }
+}
+@container (max-width: 380px) {
+  .fw-hero .fw-display { font-size: 30px; }
+  .fw-head .fw-meta { display: none; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .fw-card { transition: box-shadow .2s ease, transform .2s ease; }
+  .fw-slot:hover .fw-card { transform: translateY(-1px); }
+}

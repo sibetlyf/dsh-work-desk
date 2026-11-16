@@ -3,6 +3,8 @@ import React from 'react'
 import { CalendarView } from './calendar.jsx'
 import { ChatDock } from './chat.jsx'
 import { loadDesk, setDesk, setRootCtx, startTicker, undo, useDesk } from './desk.js'
+import { WorkbenchView } from './fw/bench.jsx'
+import fwCss from './fw/theme.css'
 import { Island } from './island.jsx'
 import { MailView } from './mail.jsx'
 import { MarketView } from './market.jsx'
@@ -14,13 +16,14 @@ import { FormDialog, Icon, IconButton, Toast } from './ui.jsx'
 const PANEL_ID = 'work-desk'
 
 const NAV = [
+  { id: 'bench', label: '工作台', icon: 'grid' },
   { id: 'today', label: '今日', icon: 'today' },
   { id: 'calendar', label: '日程', icon: 'calendar' },
   { id: 'mail', label: '邮件', icon: 'mail' },
   { id: 'market', label: '行情', icon: 'chart' },
 ]
 
-const VIEWS = { today: TodayView, calendar: CalendarView, mail: MailView, market: MarketView }
+const VIEWS = { bench: WorkbenchView, today: TodayView, calendar: CalendarView, mail: MailView, market: MarketView }
 
 function Alerts() {
   const alerts = useDesk(s => s.alerts)
@@ -106,7 +109,7 @@ function Shell(props) {
   const showDock = dockOpen
   return (
     <div className={`wd-root ${narrow ? 'is-narrow' : ''} ${compact ? 'is-compact' : ''} ${showDock ? 'has-dock' : ''}`} ref={rootRef}>
-      <style>{css}</style>
+      <style>{css}{fwCss}</style>
       <div className="wd-ambient" aria-hidden="true"><i /><i /><i /></div>
       <div className="wd-main">
         <header className="wd-topbar" data-window-drag="">
@@ -124,7 +127,7 @@ function Shell(props) {
           <IconButton icon="gear" label="设置" onClick={() => setDesk({ settingsOpen: true })} />
           {showDock ? null : <button type="button" className="wd-open-dock" onClick={() => setDesk({ dockOpen: true })}><Icon name="spark" size={14} />助手</button>}
         </header>
-        {ready ? <Island /> : null}
+        {ready && view !== 'bench' ? <Island /> : null}
         <main className="wd-content" key={view}>
           {error ? (
             <div className="wd-page"><p className="wd-muted">工作台加载失败：{error}</p><button type="button" className="wd-btn" onClick={loadDesk}>重试</button></div>

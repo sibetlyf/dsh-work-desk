@@ -153,6 +153,56 @@ await page.waitForTimeout(2000)
 await page.screenshot({ path: join(outDir, 'shot-market.png') })
 console.log('market ok')
 
+// 原子工作台：8 列网格、三档尺寸、FullWidget 三套主题
+await page.click('.wd-nav button:has-text("工作台")')
+await page.waitForSelector('.fw-grid', { timeout: 10_000 })
+await page.waitForTimeout(600)
+const gridInfo = await page.evaluate(() => {
+  const grid = document.querySelector('.fw-grid')
+  const slots = [...grid.children]
+  const cols = getComputedStyle(grid).gridTemplateColumns.split(' ').length
+  const sizes = slots.map(slot => {
+    const rect = slot.getBoundingClientRect()
+    const cell = grid.getBoundingClientRect().width / 8
+    return { cls: slot.className, w: Math.round(rect.width / cell), h: Math.round(rect.height) }
+  })
+  return { cols, count: slots.length, sizes, overflowX: document.documentElement.scrollWidth > innerWidth }
+})
+console.log('bench 网格：', JSON.stringify(gridInfo))
+if (gridInfo.cols !== 8) throw new Error(`工作台应为 8 列，实际 ${gridInfo.cols}`)
+await page.screenshot({ path: join(outDir, 'shot-bench.png') })
+
+// 编辑态：同一实例 中→小→大，内容层级必须随之变化
+await page.click('.fw-bar button:has-text("编辑布局")')
+await page.waitForTimeout(300)
+await page.screenshot({ path: join(outDir, 'shot-bench-edit.png') })
+
+const slotOf = name => page.locator('.fw-slot').filter({ has: page.locator(`.fw-head h2:text-is("${name}")`) }).first()
+const bodyOf = async name => (await slotOf(name).locator('.fw-body').innerText()).replace(/\s+/g, ' ').trim()
+
+const tasksM = await bodyOf('待办')
+await slotOf('待办').locator('.fw-edit button:has-text("大")').click()
+await page.waitForTimeout(350)
+const tasksL = await bodyOf('待办')
+await slotOf('待办').locator('.fw-edit button:has-text("小")').click()
+await page.waitForTimeout(350)
+const tasksS = await bodyOf('待办')
+
+const rows = text => (text.match(/•/g) || []).length
+console.log('待办 中：', tasksM.slice(0, 40))
+console.log('待办 大：', tasksL.slice(0, 60))
+console.log('待办 小：', tasksS.slice(0, 40))
+if (!(tasksL.length > tasksS.length)) throw new Error('大卡信息量应大于小卡')
+if (!(tasksS.length < tasksM.length || tasksS.split(' ').length <= tasksM.split(' ').length)) throw new Error('小卡应比中卡精简')
+await slotOf('待办').locator('.fw-edit button:has-text("中")').click()
+await page.waitForTimeout(300)
+
+// 主题切换
+await page.click('.fw-bar button:has-text("书桌上的纸")')
+await page.waitForTimeout(400)
+await page.screenshot({ path: join(outDir, 'shot-bench-paper.png') })
+console.log('bench ok')
+
 await browser.close()
 server.close()
 for (const dispose of cleanups.reverse()) { try { dispose() } catch {} }

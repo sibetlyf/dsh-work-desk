@@ -4,6 +4,7 @@ import { setDesk, undo, useDesk } from './desk.js'
 
 const PATHS = {
   today: 'M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM12 8v4l3 2M12 2v2M12 20v2M2 12h2M20 12h2',
+  grid: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z',
   calendar: 'M5 6h14v14H5zM5 10h14M9 3.5v4M15 3.5v4',
   mail: 'M3 6h18v12H3zM3 7l9 6 9-6',
   chart: 'M4 19V5M4 19h16M8 15l3-4 3 2 4-6',

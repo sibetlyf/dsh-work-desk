@@ -5,8 +5,10 @@ import { registerTools, TOOL_NAMES } from '../src/tools.js'
 import { applySamples, buildSeed, migrateState } from '../src/seed.js'
 
 function harness() {
-  const state = migrateState(buildSeed(new Date('2026-11-09T09:00:00+08:00')))
-  applySamples(state, new Date('2026-11-09T09:00:00+08:00'))
+  // 示例数据按“调用时的此刻”生成，避免写死的日期过期后 list 窗口里一条都取不到。
+  const now = new Date()
+  const state = migrateState(buildSeed(now))
+  applySamples(state, now)
   const tools = new Map()
   const ctx = {
     get(name) {
