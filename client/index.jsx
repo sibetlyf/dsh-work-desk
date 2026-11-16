@@ -4,6 +4,7 @@ import { CalendarView } from './calendar.jsx'
 import { ChatDock } from './chat.jsx'
 import { loadDesk, setDesk, setRootCtx, startTicker, undo, useDesk } from './desk.js'
 import { WorkbenchView } from './fw/bench.jsx'
+import { WorkbenchSettings } from './fw/settings-section.jsx'
 import fwCss from './fw/theme.css'
 import { Island } from './island.jsx'
 import { MailView } from './mail.jsx'
@@ -153,4 +154,11 @@ export function apply(ctx) {
     order: 5,
     label: () => '办公工作台',
   }, ({ size }) => <Icon name="calendar" size={size} />))
+  // DSH 设置页里加一节「工作台」：主题、布局 revision、恢复默认，读写的是同一份 Host 布局
+  ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section',
+    id: 'work-desk-workbench',
+    order: 55,
+    label: () => '工作台',
+  }, WorkbenchSettings))
 }

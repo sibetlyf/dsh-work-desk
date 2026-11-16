@@ -36,6 +36,17 @@
 
 ## 功能
 
+**工作台（原子桌面）**
+- 每行 8 列，三种尺寸：小 1×1、中 2×1、大 4×3；尺寸切换会换信息层级（小=一个判断，中=两条预览，大=清单与操作）
+- 内置九种原子：日历、下一件事、待办、邮件、行情、今天先做什么、时钟、提醒、快捷入口
+- **FullWidget 38 个原生组件**随包分发，按它的 `widget.json` 渲染、用它自己的 icon 与主题；只补浏览器侧的 `widget.*` 桥
+- **生成式卡片**：白名单结构（text/stat/badge/progress/list/keyvalue/steps/callout/chart/divider），无 HTML、无脚本，可写 `views{s,m,l}` 三档规格
+- 三套 FullWidget 外观：量被画出来 / 书桌上的纸 / 玻璃上的字
+- 编辑态显示虚线格子、拖动排序、换档、前移后移、组件设置、添加与移除
+- 布局存在 **Host**（`~/.dsh/work-desk/workbench.json`，revision + requestId 幂等），Agent 用 `workbench_inspect` / `workbench_apply` 读写同一份
+- 设置页新增「工作台」一节：切主题、看 revision、恢复默认布局
+- 桌面 8 列 / 平板 4 列 / 手机 2 列（按业务容器宽度）
+
 **今日**
 - 一行大字：今天几个会、几条待办、几封未读
 - 下一件是什么，还有几分钟
