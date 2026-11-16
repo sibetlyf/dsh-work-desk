@@ -6,7 +6,7 @@ import { dispatchOps, openMail, setDesk, toast, useDesk } from '../desk.js'
 import { renderAtom } from './atoms.jsx'
 import { FwWidget, fwIconUrl, sizeOfWidget, useFwWidgets } from './fwwidgets.jsx'
 import { GenuiAtom, sanitizeSpec, specUsable } from './genui.jsx'
-import { ATOMS, SIZES, cellCount, defaultLayout, isKnownType, loadLayout, newId, planLayout, sanitize, saveLayout } from './layout.js'
+import { ATOMS, SIZES, cellCount, columnsFor, defaultLayout, isKnownType, loadLayout, newId, planLayout, sanitize, saveLayout } from './layout.js'
 
 const THEMES = [
   { id: 'instrument', label: '量被画出来' },
@@ -103,6 +103,12 @@ function nameOf(widgets, atom) {
   return typeof name === 'object' ? (name['zh-CN'] ?? name.zh ?? name.en ?? widget.id) : name
 }
 
+async function readRemoteLayout() {
+  const res = await fetch('work-desk/workbench')
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return res.json()
+}
+
 export function WorkbenchView() {
   const state = useDesk(s => s.state)
   const quotes = useDesk(s => s.quotes)
@@ -120,31 +126,59 @@ export function WorkbenchView() {
   const [dropAt, setDropAt] = React.useState(null)
   const [now, setNow] = React.useState(() => new Date())
   const [configFor, setConfigFor] = React.useState(null)
+  const [columns, setColumns] = React.useState(8)
   const saveTimer = React.useRef(null)
   const revisionRef = React.useRef(0)
+  // 已同步到 Host 的布局签名与「本地有未保存改动」标记：读回/轮询不能覆盖用户改动，也不能凭空写 Host
+  const syncedRef = React.useRef('')
+  const dirtyRef = React.useRef(false)
+  const hostRef = React.useRef(null)
 
   React.useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 30_000)
     return () => clearInterval(timer)
   }, [])
 
+  // 容器宽度决定列数（与 theme.css 的容器查询同一阈值）：卡片必须按实际列数放置
+  React.useEffect(() => {
+    const host = hostRef.current
+    if (!host) return undefined
+    const observer = new ResizeObserver(entries => {
+      const entry = entries[entries.length - 1]
+      if (entry) setColumns(columnsFor(entry.contentRect.width))
+    })
+    observer.observe(host)
+    return () => observer.disconnect()
+  }, [])
+
   const adopt = data => {
-    const next = sanitize({ theme: data.theme, atoms: data.atoms })
-    if (!next) return
+    const next = sanitize({ theme: data?.theme, atoms: data?.atoms })
+    if (!next) return false
     setLayout(next)
     setRevision(data.revision)
     revisionRef.current = data.revision
+    syncedRef.current = JSON.stringify(next)
+    dirtyRef.current = false
     setRemote(true)
+    return true
+  }
+
+  const resync = async () => {
+    try {
+      const data = await readRemoteLayout()
+      adopt(data)
+    } catch {
+      setRemote(false)
+    }
   }
 
   React.useEffect(() => {
     let live = true
     const load = async () => {
+      if (!live || dirtyRef.current) return // 本地有未保存改动时，轮询不覆盖
       try {
-        const res = await fetch('work-desk/workbench')
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        const data = await res.json()
-        if (live) adopt(data)
+        const data = await readRemoteLayout()
+        adopt(data)
       } catch {
         if (live) setRemote(false)
       }
@@ -156,10 +190,19 @@ export function WorkbenchView() {
     return () => { live = false; clearInterval(timer); window.removeEventListener('focus', onFocus) }
   }, [])
 
-  // 改动先即时生效，再整批写回 Host；Host 不在线时退回本机保存。
+  // 只有用户改动过（dirty）才写回；读回同一份布局不产生写入。
   React.useEffect(() => {
-    if (remote === null) return
-    if (remote === false) { saveLayout(layout); return }
+    if (remote === null) return undefined
+    const sig = JSON.stringify(layout)
+    if (remote === false) {
+      if (sig !== syncedRef.current) {
+        saveLayout(layout)
+        syncedRef.current = sig
+        dirtyRef.current = false
+      }
+      return undefined
+    }
+    if (!dirtyRef.current || sig === syncedRef.current) return undefined
     clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(async () => {
       try {
@@ -173,13 +216,50 @@ export function WorkbenchView() {
             source: 'ui',
           }),
         })
-        const data = await res.json()
+        const data = await res.json().catch(() => ({}))
         if (data.conflict) {
+          // 布局在别处被改过：用新的 revision 把本地这份改动重提一次，
+          // 而不是直接丢掉用户刚才的移动/换档。
+          try {
+            const fresh = await (await fetch('work-desk/workbench')).json()
+            revisionRef.current = fresh.revision
+            setRevision(fresh.revision)
+            // 合并而不是覆盖：本地这份布局为准，同时把别处新加、我们不认识的组件接在后面
+            const merged = {
+              theme: layout.theme,
+              atoms: [...layout.atoms, ...(fresh.atoms ?? []).filter(atom => !layout.atoms.some(local => local.id === atom.id))],
+            }
+            const retry = await fetch('work-desk/workbench', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({
+                baseRevision: fresh.revision,
+                requestId: `ui-rebase-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+                ops: [{ op: 'replace', layout: merged }],
+                source: 'ui',
+              }),
+            })
+            const again = await retry.json().catch(() => ({}))
+            if (again.ok) {
+              syncedRef.current = JSON.stringify(merged)
+              dirtyRef.current = false
+              saveLayout(merged)
+              adopt({ theme: merged.theme, atoms: merged.atoms, revision: again.revision })
+              toast('布局已被别处改过，已按你的这次改动合并保存', {})
+              return
+            }
+          } catch { /* 重提失败就走下面的回读 */ }
           toast('布局已被别处改过，已重新读取', { error: true })
-          adopt(data.layout ? { ...data.layout, revision: data.revision } : data)
+          await resync()
           return
         }
-        if (!data.ok) { toast((data.errors ?? ['保存失败'])[0], { error: true }); return }
+        if (!data.ok) {
+          toast((data.errors ?? [data.error ?? '保存失败'])[0], { error: true })
+          await resync()
+          return
+        }
+        syncedRef.current = sig
+        dirtyRef.current = false
         setRevision(data.revision)
         revisionRef.current = data.revision
         saveLayout(layout)
@@ -190,13 +270,16 @@ export function WorkbenchView() {
     return () => clearTimeout(saveTimer.current)
   }, [layout, remote])
 
-  const update = mutate => setLayout(prev => {
-    const draftLayout = { ...prev, atoms: prev.atoms.map(atom => ({ ...atom })) }
-    mutate(draftLayout)
-    return draftLayout
-  })
+  const update = mutate => {
+    dirtyRef.current = true
+    setLayout(prev => {
+      const draftLayout = { ...prev, atoms: prev.atoms.map(atom => ({ ...atom })) }
+      mutate(draftLayout)
+      return draftLayout
+    })
+  }
 
-  const plan = planLayout(layout.atoms)
+  const plan = planLayout(layout.atoms, columns)
   const ctx = {
     state: state ?? { events: [], tasks: [], mails: [], watchlist: [], brief: null },
     quotes,
@@ -214,6 +297,15 @@ export function WorkbenchView() {
     if (from == null || to == null || from === to) return
     update(draftLayout => {
       const [item] = draftLayout.atoms.splice(from, 1)
+      draftLayout.atoms.splice(to, 0, item)
+    })
+  }
+
+  const moveBy = (index, delta) => {
+    const to = index + delta
+    if (to < 0 || to >= layout.atoms.length) return
+    update(draftLayout => {
+      const [item] = draftLayout.atoms.splice(index, 1)
       draftLayout.atoms.splice(to, 0, item)
     })
   }
@@ -240,7 +332,7 @@ export function WorkbenchView() {
 
   return (
     <div className="wd-page wd-bench-page">
-      <div className={`wd-fw ${editing ? 'is-editing' : ''}`} data-fw-theme={layout.theme}>
+      <div className={`wd-fw ${editing ? 'is-editing' : ''}`} data-fw-theme={layout.theme} ref={hostRef}>
         <header className="fw-bar">
           <div><h1>工作台</h1></div>
           <span className="fw-sub">8 列 · 1×1 / 2×1 / 4×3 · {layout.atoms.length} 个组件 · {fw.widgets.length ? `FullWidget ${fw.widgets.length} 个原生组件可用` : '正在读取 FullWidget 组件'}</span>
@@ -251,7 +343,15 @@ export function WorkbenchView() {
             ))}
           </div>
           <button type="button" className="fw-btn" onClick={() => setPanel(panel === 'add' ? null : 'add')} aria-expanded={panel === 'add'}>＋ 添加组件</button>
-          <button type="button" className={`fw-btn ${editing ? 'is-on' : ''}`} onClick={() => setEditing(value => !value)}>{editing ? '✓ 完成编辑' : '编辑布局'}</button>
+          <button
+            type="button"
+            className={`fw-btn ${editing ? 'is-on' : ''}`}
+            aria-label={editing ? '完成编辑' : '编辑布局'}
+            aria-pressed={editing}
+            onClick={() => setEditing(value => !value)}
+          >
+            {editing ? '✓ 完成编辑' : '编辑布局'}
+          </button>
         </header>
 
         {fw.error ? <p className="fw-hint">FullWidget 组件没读到：{fw.error}</p> : null}
@@ -292,10 +392,10 @@ export function WorkbenchView() {
 
         {editing ? <p className="fw-hint">拖动卡片换位置：虚线格子是可用位置；右上角切 小／中／大 或移除。</p> : null}
 
-        <div className="fw-grid" aria-label="工作台组件网格">
+        <div className="fw-grid" aria-label="工作台组件网格" style={{ '--fw-cols': columns }}>
           {editing ? (
             <div className="fw-cells" aria-hidden="true" style={{ gridRow: `1 / span ${plan.rows}` }}>
-              {Array.from({ length: plan.rows * 8 }, (_, index) => <i key={index} />)}
+              {Array.from({ length: plan.rows * columns }, (_, index) => <i key={index} />)}
             </div>
           ) : null}
           {layout.atoms.map((atom, index) => {
@@ -313,8 +413,26 @@ export function WorkbenchView() {
                 ].filter(Boolean).join(' ')}
                 style={{ gridColumn: `${spot.col + 1} / span ${spot.w}`, gridRow: `${spot.row + 1} / span ${spot.h}` }}
                 draggable={editing}
-                onDragStart={() => { dragFrom.current = index }}
-                onDragOver={event => { if (!editing) return; event.preventDefault(); setDropAt(index) }}
+                tabIndex={editing ? 0 : undefined}
+                aria-label={editing ? `${nameOf(fw.widgets, atom)}（${SIZES[atom.size].label}），方向键 ←/→ 移动` : undefined}
+                onKeyDown={event => {
+                  if (!editing) return
+                  if (event.key === 'ArrowLeft') { event.preventDefault(); moveBy(index, -1) }
+                  else if (event.key === 'ArrowRight') { event.preventDefault(); moveBy(index, 1) }
+                }}
+                onDragStart={event => {
+                  dragFrom.current = index
+                  try {
+                    event.dataTransfer?.setData('text/plain', String(index))
+                    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
+                  } catch { /* 某些浏览器禁止在 dragstart 里写自定义数据 */ }
+                }}
+                onDragOver={event => {
+                  if (!editing) return
+                  event.preventDefault()
+                  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+                  setDropAt(index)
+                }}
                 onDragLeave={() => setDropAt(value => (value === index ? null : value))}
                 onDrop={event => { if (!editing) return; event.preventDefault(); move(dragFrom.current, index); dragFrom.current = null; setDropAt(null) }}
                 onDragEnd={() => { dragFrom.current = null; setDropAt(null) }}
@@ -347,6 +465,7 @@ export function WorkbenchView() {
                     <button
                       type="button"
                       className="fw-size"
+                      aria-label={`尺寸：${SIZES[atom.size].label}，点击切换下一档`}
                       title={`当前 ${SIZES[atom.size].label}，点一下换下一档`}
                       onClick={() => update(draftLayout => {
                         const order = ['s', 'm', 'l']

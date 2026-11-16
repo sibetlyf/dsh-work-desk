@@ -1,7 +1,10 @@
 // 工作台布局模型的单元测试：尺寸语义、默认布局覆盖、非法数据的兜底。
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { ATOMS, COLUMNS, MAX_ATOMS, SIZES, cellCount, defaultLayout, sanitize } from '../client/fw/layout.js'
+import {
+  ATOMS, COLUMNS, GENUI_NODE_TYPES, MAX_ATOMS, SIZES, cellCount, columnsFor, defaultLayout,
+  genuiSpecUsable, planLayout, sanitize, specDepthOk,
+} from '../client/fw/layout.js'
 
 test('网格常量：8 列，小 1×1 / 中 2×1 / 大 4×3', () => {
   assert.equal(COLUMNS, 8)
@@ -63,4 +66,72 @@ test('sanitize：未知主题退回 instrument，超出上限截断', () => {
   const result = sanitize({ theme: 'neon', atoms: many })
   assert.equal(result.theme, 'instrument')
   assert.equal(result.atoms.length, MAX_ATOMS)
+})
+
+test('响应式列数：容器 ≤560 → 2，≤880 → 4，其余 8', () => {
+  assert.equal(columnsFor(1500), 8)
+  assert.equal(columnsFor(900), 8)
+  assert.equal(columnsFor(880), 4)
+  assert.equal(columnsFor(820), 4)
+  assert.equal(columnsFor(561), 4)
+  assert.equal(columnsFor(560), 2)
+  assert.equal(columnsFor(390), 2)
+  assert.equal(columnsFor(0), COLUMNS)
+})
+
+test('planLayout：默认 8 列，第一张大卡占 4×3，所有卡片不越界', () => {
+  const layout = defaultLayout()
+  const plan = planLayout(layout.atoms)
+  assert.equal(plan.columns, 8)
+  assert.deepEqual(plan.placed[0], { id: layout.atoms[0].id, row: 0, col: 0, w: 4, h: 3 })
+  for (const spot of plan.placed) {
+    assert.ok(spot.col >= 0)
+    assert.ok(spot.col + spot.w <= 8, `${spot.id} 越界：${spot.col}+${spot.w}`)
+  }
+  assert.equal(plan.rows, 4)
+})
+
+test('planLayout：4 列/2 列容器按实际列数截断宽度，不产生隐式列', () => {
+  const layout = defaultLayout()
+  const four = planLayout(layout.atoms, 4)
+  assert.equal(four.columns, 4)
+  for (const spot of four.placed) assert.ok(spot.col + spot.w <= 4, `${spot.id} 越界：${spot.col}+${spot.w}`)
+  const two = planLayout(layout.atoms, 2)
+  assert.equal(two.columns, 2)
+  assert.equal(two.placed[0].w, 2, '2 列时大卡应满宽')
+  for (const spot of two.placed) assert.ok(spot.col + spot.w <= 2, `${spot.id} 越界：${spot.col}+${spot.w}`)
+})
+
+test('cellCount：未知尺寸退回中卡，不抛异常', () => {
+  assert.equal(cellCount([{ size: 's' }, { size: 'm' }, { size: 'l' }]), 1 + 2 + 12)
+  assert.equal(cellCount([{ size: 'xl' }]), 2)
+})
+
+test('生成式规格：空 items / 超深数组 / 未知 type 都不可用，合法规格可用', () => {
+  assert.equal(genuiSpecUsable(null), false)
+  assert.equal(genuiSpecUsable({}), false)
+  assert.equal(genuiSpecUsable({ items: [] }), false)
+  assert.equal(genuiSpecUsable({ items: [{ type: 'script', content: 'alert(1)' }] }), false)
+  assert.equal(genuiSpecUsable({ items: [{ type: 'list', items: [[[[[[{ title: 'x' }]]]]]] }] }), false)
+  assert.equal(genuiSpecUsable({ title: '概览', items: [{ type: 'stat', label: '会议', value: '3' }] }), true)
+  assert.equal(genuiSpecUsable({ views: { s: { items: [{ type: 'badge', label: 'x' }] } } }), true)
+  assert.equal(GENUI_NODE_TYPES.has('script'), false)
+})
+
+test('specDepthOk：正常规格通过，深层嵌套数组被拒', () => {
+  const deep = { items: [{ type: 'list', items: [[[[[[[[[{ title: 'x' }]]]]]]]]] }] }
+  assert.equal(specDepthOk(deep), false)
+  assert.equal(specDepthOk({ title: 'x', items: [{ type: 'progress', label: 'p', value: 40 }] }), true)
+})
+
+test('sanitize：丢掉不合法的生成式规格（空 items / 超深 / 未知 type），合法规格保留', () => {
+  const bad = [
+    { id: 'g1', type: 'genui', size: 'm', spec: { items: [] } },
+    { id: 'g2', type: 'genui', size: 'm', spec: { items: [{ type: 'list', items: [[[[[[{ title: 'x' }]]]]]] }] } },
+    { id: 'g3', type: 'genui', size: 'm', spec: { items: [{ type: 'script' }] } },
+  ]
+  const good = { id: 'g4', type: 'genui', size: 'm', spec: { title: '概览', items: [{ type: 'stat', label: '会议', value: '3' }] } }
+  const result = sanitize({ theme: 'paper', atoms: [...bad, good] })
+  for (const atom of result.atoms.filter(row => row.id !== 'g4')) assert.equal('spec' in atom, false)
+  assert.equal(result.atoms.find(atom => atom.id === 'g4').spec.items.length, 1)
 })

@@ -88,6 +88,17 @@ test('生成式卡片只有空 views 时仍然拒绝', () => {
   assert.equal(bad.errors.length, 1)
 })
 
+test('生成式卡片：未知 type 与超深数组会被 Host 拒绝，不写入布局', () => {
+  const base = { atoms: [{ id: 'a', type: 'tasks', size: 's' }] }
+  const unknown = applyWorkbenchOps(base, [{ op: 'add', id: 'g1', type: 'genui', size: 'm', spec: { items: [{ type: 'script', content: 'x' }] } }])
+  assert.equal(unknown.errors.length, 1)
+  assert.equal(unknown.layout.atoms.length, base.atoms.length)
+  const deepSpec = { items: [{ type: 'list', items: [[[[[[{ title: 'x' }]]]]]] }] }
+  const deep = applyWorkbenchOps(base, [{ op: 'add', id: 'g2', type: 'genui', size: 'm', spec: deepSpec }])
+  assert.equal(deep.errors.length, 1)
+  assert.equal(deep.layout.atoms.length, base.atoms.length)
+})
+
 test('FullWidget 类型可以进布局，未知 fw id 的格式错误会被拒', () => {
   const base = { atoms: [{ id: 'a', type: 'tasks', size: 's' }] }
   const ok = applyWorkbenchOps(base, [{ op: 'add', id: 'w1', type: 'fw:calendar', size: 'l' }])
@@ -109,9 +120,14 @@ test('文件存储：落盘、revision 递增、旧 revision 被拒、requestId 
   const replay = await store.apply({ ops: [{ op: 'add', id: 'z2', type: 'clock', size: 's' }], requestId: 'r1' })
   assert.equal(replay.replayed, true)
   assert.equal(replay.revision, 2)
+  assert.equal(replay.layout.atoms.some(atom => atom.id === 'z2'), false, '重复 requestId 不能执行第二份操作')
+  assert.equal(replay.layout.atoms.some(atom => atom.id === 'z'), true)
 
   const conflict = await store.apply({ ops: [{ op: 'remove', id: 'z' }], baseRevision: 1, requestId: 'r2' })
   assert.equal(conflict.conflict, true)
+  assert.equal(conflict.revision, 2)
+  const afterConflict = await store.read()
+  assert.equal(afterConflict.atoms.some(atom => atom.id === 'z'), true, '过期 revision 不能改变布局')
 
   const removed = await store.apply({ ops: [{ op: 'remove', id: 'z' }], baseRevision: 2, requestId: 'r3' })
   assert.equal(removed.ok, true)

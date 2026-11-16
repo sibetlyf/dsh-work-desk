@@ -40,9 +40,32 @@ export function defaultWorkbench() {
 
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value)
 
+// 生成式卡片的白名单与深度上限，必须和客户端（client/fw/layout.js）保持一致：
+// Host 不能把客户端渲染不了、或深到能拖垮渲染的规格写进布局。
+const SPEC_TYPES = new Set(['text', 'stat', 'badge', 'progress', 'list', 'keyvalue', 'steps', 'callout', 'chart', 'divider'])
+const MAX_SPEC_DEPTH = 6
+const MAX_SPEC_WALK = 4096
+function specDepthOk(value) {
+  let budget = MAX_SPEC_WALK
+  const walk = (node, depth) => {
+    if (!node || typeof node !== 'object') return true
+    if (depth > MAX_SPEC_DEPTH) return false
+    if ((budget -= 1) < 0) return false
+    if (Array.isArray(node)) return node.every(item => walk(item, depth + 1))
+    return Object.values(node).every(item => walk(item, depth + 1))
+  }
+  return walk(value, 0)
+}
+
+function cleanNodes(items) {
+  return (Array.isArray(items) ? items : [])
+    .filter(item => isObject(item) && typeof item.type === 'string' && SPEC_TYPES.has(item.type) && specDepthOk(item))
+    .slice(0, MAX_SPEC_ITEMS)
+}
+
 function cleanSpec(spec) {
   if (!isObject(spec)) return undefined
-  const items = Array.isArray(spec.items) ? spec.items.filter(item => isObject(item) && typeof item.type === 'string').slice(0, MAX_SPEC_ITEMS) : []
+  const items = cleanNodes(spec.items)
   const flat = { title: typeof spec.title === 'string' ? spec.title.slice(0, 200) : '', items }
   // 三档规格：views 里每个尺寸各一份；缺的档退回同一份扁平规格
   if (isObject(spec.views)) {
@@ -50,7 +73,7 @@ function cleanSpec(spec) {
     for (const size of ['s', 'm', 'l']) {
       const raw = spec.views[size]
       if (!isObject(raw)) continue
-      const items = Array.isArray(raw.items) ? raw.items.filter(item => isObject(item) && typeof item.type === 'string').slice(0, MAX_SPEC_ITEMS) : []
+      const items = cleanNodes(raw.items)
       if (!items.length) continue
       views[size] = { title: typeof raw.title === 'string' ? raw.title.slice(0, 200) : '', items }
     }

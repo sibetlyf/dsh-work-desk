@@ -118,7 +118,7 @@ function Shell(props) {
             {NAV.map(entry => (
               <button type="button" key={entry.id} className={view === entry.id ? 'is-on' : ''} aria-current={view === entry.id ? 'page' : undefined} onClick={() => setDesk({ view: entry.id })}>
                 <Icon name={entry.icon} size={14} />
-                {entry.label}
+                <span>{entry.label}</span>
               </button>
             ))}
           </nav>

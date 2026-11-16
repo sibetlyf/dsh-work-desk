@@ -1,6 +1,7 @@
 // 生成式组件：白名单结构，无 HTML、无脚本、无 eval。
 // 规格来自布局（本机浏览器），后续由工作台工具写入 Host；这里先保证渲染与校验是同一套。
 import React from 'react'
+import { GENUI_NODE_TYPES, genuiSpecUsable, specDepthOk } from './layout.js'
 
 const MAX_NODES = 40
 const MAX_TEXT = 400
@@ -23,23 +24,18 @@ export function pickSpec(spec, size) {
 
 /** 能否加入工作台：扁平规格或有任意一档 views 里含白名单节点。 */
 export function specUsable(raw) {
-  if (!raw || typeof raw !== 'object') return false
-  if (sanitizeSpec(raw)) return true
-  const views = raw.views
-  if (!views || typeof views !== 'object') return false
-  return ['s', 'm', 'l'].some(size => sanitizeSpec(views[size]))
+  return genuiSpecUsable(raw)
 }
 
-/** 校验结构，非法节点直接丢弃，不整块失败。 */
+/** 校验结构，非法节点直接丢弃，不整块失败；超深/超大规格整份拒绝。 */
 export function sanitizeSpec(raw) {
-  if (!raw || typeof raw !== 'object') return null
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  if (!specDepthOk(raw)) return null
   const items = Array.isArray(raw.items) ? raw.items.slice(0, MAX_NODES) : []
-  const nodes = items.filter(node => node && typeof node === 'object' && typeof node.type === 'string').filter(node => ALLOWED.has(node.type))
+  const nodes = items.filter(node => node && typeof node === 'object' && typeof node.type === 'string').filter(node => GENUI_NODE_TYPES.has(node.type))
   if (!nodes.length) return null
   return { title: text(raw.title), items: nodes }
 }
-
-const ALLOWED = new Set(['text', 'stat', 'badge', 'progress', 'list', 'keyvalue', 'steps', 'callout', 'chart', 'divider'])
 
 function Badge({ label, tone }) {
   const klass = TONES.includes(tone) ? tone : 'accent'

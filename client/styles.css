@@ -413,6 +413,11 @@ body[data-ds-dark-theme] .wd-root { color-scheme: dark; }
 .wd-root.is-compact .wd-mail-read { display: none; }
 .wd-root.is-compact .wd-hero-line { font-size: 24px; line-height: 34px; }
 .wd-root.is-compact .wd-nav button span { display: none; }
+/* 窄屏顶栏收紧：只留图标，右侧按钮必须完整落在可视区内 */
+.wd-root.is-compact .wd-topbar { gap: 4px; padding: 8px 8px 8px max(8px, var(--dsh-frame-leading-clearance, 0px)); }
+.wd-root.is-compact .wd-nav { gap: 1px; padding: 2px; }
+.wd-root.is-compact .wd-nav button { padding: 0 7px; height: 28px; }
+.wd-root.is-compact .wd-topbar .wd-icon-btn { width: 28px; height: 28px; }
 @media (max-width: 1180px) {
   .wd-mail-page { grid-template-columns: 180px 300px minmax(0, 1fr); }
 }

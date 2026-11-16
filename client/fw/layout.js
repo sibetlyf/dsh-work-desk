@@ -1,7 +1,16 @@
 // 工作台的布局模型：8 列，小 1×1 / 中 2×1 / 大 4×3（横向×纵向）。
-// 这一版布局存在当前浏览器的 localStorage；换成 Host 权威存储是后续步骤，界面上已如实标注。
+// 布局由 Host 权威存储（src/workbench.js）；这里只负责模型、放置与校验，Host 不在线时才退回本机浏览器。
 
 export const COLUMNS = 8
+
+/** 响应式列数：容器 <880px 4 列，<560px 2 列（与 theme.css 的容器查询阈值一致）。 */
+export function columnsFor(width) {
+  const w = Number(width)
+  if (!Number.isFinite(w) || w <= 0) return COLUMNS
+  if (w <= 560) return 2
+  if (w <= 880) return 4
+  return 8
+}
 
 export const SIZES = {
   s: { w: 1, h: 1, label: '小' },
@@ -52,6 +61,40 @@ const FW_TYPE = /^fw:[a-z0-9-]{1,32}$/
 const BUILTIN = new Set(Object.keys(ATOMS))
 const THEMES = ['instrument', 'paper', 'type']
 
+/** 生成式卡片白名单节点；Host 与客户端共用同一份（见 src/workbench.js）。 */
+export const GENUI_TYPES = ['text', 'stat', 'badge', 'progress', 'list', 'keyvalue', 'steps', 'callout', 'chart', 'divider']
+export const GENUI_NODE_TYPES = new Set(GENUI_TYPES)
+export const MAX_SPEC_DEPTH = 6
+const MAX_SPEC_WALK = 4096
+
+/** 规格结构深度与节点数上限：挡住深层嵌套数组和超大对象，避免渲染/存储被拖垮。 */
+export function specDepthOk(value) {
+  let budget = MAX_SPEC_WALK
+  const walk = (node, depth) => {
+    if (!node || typeof node !== 'object') return true
+    if (depth > MAX_SPEC_DEPTH) return false
+    if ((budget -= 1) < 0) return false
+    if (Array.isArray(node)) return node.every(item => walk(item, depth + 1))
+    return Object.values(node).every(item => walk(item, depth + 1))
+  }
+  return walk(value, 0)
+}
+
+function specHasNode(view) {
+  return (Array.isArray(view?.items) ? view.items : []).some(node => node && typeof node === 'object' && typeof node.type === 'string' && GENUI_NODE_TYPES.has(node.type))
+}
+
+/** 能否渲染：至少一个白名单节点，结构不超深，节点数不超限。 */
+export function genuiSpecUsable(spec) {
+  if (!spec || typeof spec !== 'object' || Array.isArray(spec)) return false
+  if (!specDepthOk(spec)) return false
+  if (specHasNode(spec)) return true
+  if (spec.views && typeof spec.views === 'object' && !Array.isArray(spec.views)) {
+    return ['s', 'm', 'l'].some(size => specHasNode(spec.views[size]))
+  }
+  return false
+}
+
 /** 哪些类型算合法组件：内置九种、FullWidget 原生组件、生成式卡片。 */
 export function isKnownType(type) {
   return typeof type === 'string' && (BUILTIN.has(type) || type === 'genui' || FW_TYPE.test(type))
@@ -90,7 +133,7 @@ export function sanitize(raw) {
     seen.add(atom.id)
     const entry = { id: atom.id, type: atom.type, size: atom.size }
     if (atom.config && typeof atom.config === 'object' && !Array.isArray(atom.config)) entry.config = atom.config
-    if (atom.type === 'genui' && atom.spec && typeof atom.spec === 'object') entry.spec = atom.spec
+    if (atom.type === 'genui' && atom.spec && typeof atom.spec === 'object' && genuiSpecUsable(atom.spec)) entry.spec = atom.spec
     next.push(entry)
   }
   if (!next.length) return null
@@ -99,21 +142,26 @@ export function sanitize(raw) {
 
 /** 占用格数（用于“还剩多少格”一类提示）。 */
 export function cellCount(atoms) {
-  return atoms.reduce((sum, atom) => sum + SIZES[atom.size].w * SIZES[atom.size].h, 0)
+  return atoms.reduce((sum, atom) => {
+    const size = SIZES[atom.size] ?? SIZES.m
+    return sum + size.w * size.h
+  }, 0)
 }
 
 /**
  * 确定性网格放置：按顺序找第一个能放下的空位，返回每个组件的行/列与总行数。
  * 不用 CSS 的 dense 回填，保证视觉顺序、键盘顺序一致，拖动时也能预演目标格子。
+ * columns 是当前容器实际的列数：小屏 4/2 列时按列数截断宽度，避免生成隐式列。
  */
-export function planLayout(atoms) {
+export function planLayout(atoms, columns = COLUMNS) {
+  const cols = Math.max(1, Math.min(COLUMNS, Number(columns) || COLUMNS))
   const occupied = []
   const placed = []
   let rows = 0
   const free = (row, col, w, h) => {
     for (let r = row; r < row + h; r++) {
       for (let c = col; c < col + w; c++) {
-        if (c >= COLUMNS) return false
+        if (c >= cols) return false
         if (occupied[r]?.[c]) return false
       }
     }
@@ -126,12 +174,14 @@ export function planLayout(atoms) {
     }
   }
   for (const atom of atoms) {
-    const { w, h } = SIZES[atom.size] ?? SIZES.m
+    const size = SIZES[atom.size] ?? SIZES.m
+    const w = Math.min(size.w, cols)
+    const h = size.h
     let row = 0
     let col = 0
     let found = false
     for (row = 0; !found; row++) {
-      for (col = 0; col + w <= COLUMNS; col++) {
+      for (col = 0; col + w <= cols; col++) {
         if (free(row, col, w, h)) { found = true; break }
       }
     }
@@ -140,7 +190,7 @@ export function planLayout(atoms) {
     rows = Math.max(rows, row + h)
     placed.push({ id: atom.id, row, col, w, h })
   }
-  return { placed, rows: Math.max(rows, 1) }
+  return { placed, rows: Math.max(rows, 1), columns: cols }
 }
 
 export { newId }

@@ -161,6 +161,8 @@
 .fw-grid {
   flex: 1;
   min-height: 0;
+  min-width: 0;
+  max-width: 100%;
   display: grid;
   grid-template-columns: repeat(var(--fw-cols), minmax(0, 1fr));
   grid-auto-rows: var(--fw-cell);
@@ -297,7 +299,22 @@
 .fw-foot button { margin-left: auto; border: 0; background: none; color: var(--fw-accent); font: inherit; font-size: 10px; cursor: pointer; }
 
 .fw-empty { color: var(--fw-fg-muted); font-size: 11px; padding: 2px 0; }
-.fw-link { border: 0; background: none; color: inherit; font: inherit; text-align: left; padding: 0; cursor: pointer; display: contents; }
+/* 整卡可点的小卡按钮：必须有真实盒子（display:contents 会让焦点框和点击区域都消失） */
+.fw-link {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
 
 /* 可点击的列表行：按钮外观全部重置，只保留行本身的排版 */
 .fw-row-btn {
@@ -400,7 +417,9 @@
   .fw-slot.is-l { grid-column: span 2; grid-row: span 3; }
   .fw-bar h1 { font-size: 16px; }
   .fw-bar .fw-sub { display: none; }
-  .fw-edit button { height: 30px; min-width: 30px; }
+  /* 触屏下顶栏按钮与格子里的编辑控件都按 44px 最小点击高度 */
+  .fw-bar .fw-btn { height: 44px; padding: 0 14px; }
+  .fw-edit button { height: 44px; min-width: 30px; }
   .fw-foot { font-size: 9px; }
 }
 @container (max-width: 380px) {
