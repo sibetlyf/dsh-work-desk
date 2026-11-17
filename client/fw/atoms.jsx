@@ -369,7 +369,73 @@ function quick(atom, ctx) {
   )
 }
 
-const RENDERERS = { calendar, tasks, mail, quotes, brief, alerts, clock, next, quick }
+function meeting(atom, ctx) {
+  const { size, sources, openToday } = ctx
+  const row = sources?.meeting
+  if (!row) return <p className="fw-empty">正在读取会议助手状态…</p>
+  if (!row.available) {
+    return (
+      <>
+        <p className="fw-empty">读不到会议助手：{row.reason}</p>
+        {size === 'l' ? <span className="fw-label">装好会议助手插件后，这里会自动显示它的运行状态。</span> : null}
+      </>
+    )
+  }
+  const me = row.value ?? {}
+  const state = me.running ? '正在听' : '未运行'
+  if (size === 's') {
+    return (
+      <button type="button" className="fw-link" onClick={openToday}>
+        <div className="fw-hero">
+          <span className="fw-display" style={{ fontSize: 26 }}>{me.heard ?? 0}</span>
+          <div>
+            <strong>{state}</strong>
+            <small>{me.capturing ? '正在采集' : '未采集'}</small>
+          </div>
+        </div>
+      </button>
+    )
+  }
+  const pairs = [
+    ['运行状态', state],
+    ['音频采集', me.capturing ? '采集中' : '未采集'],
+    ['触发 / 播报', `${me.triggered ?? 0} / ${me.spoken ?? 0}`],
+  ]
+  if (size === 'm') {
+    return (
+      <div className="fw-list" style={{ justifyContent: 'center', gap: 6 }}>
+        {pairs.slice(0, 2).map(([key, value]) => (
+          <div key={key} className="fw-row">
+            <span className="fw-label" style={{ flex: 'none', width: 64 }}>{key}</span>
+            <b style={{ flex: 1 }}>{value}</b>
+          </div>
+        ))}
+      </div>
+    )
+  }
+  return (
+    <>
+      <div className={`fw-hero`} style={{ flex: 'none' }}>
+        <span className="fw-display" style={{ fontSize: 30 }}>{me.heard ?? 0}</span>
+        <div>
+          <strong>{state}</strong>
+          <small>{me.mode ? `策略 ${me.mode}` : '未设置策略'}{me.model ? ` · ${me.model}` : ''}</small>
+        </div>
+      </div>
+      <hr className="fw-rule" />
+      <dl className="fw-gkv">
+        {pairs.map(([key, value]) => (
+          <React.Fragment key={key}><dt>{key}</dt><dd>{value}</dd></React.Fragment>
+        ))}
+        <dt>监听 / 触发 / 播报 / 错误</dt>
+        <dd>{`${me.heard ?? 0} / ${me.triggered ?? 0} / ${me.spoken ?? 0} / ${me.errors ?? 0}`}</dd>
+      </dl>
+      {foot(me.lastJudgement ? `最近判定：${String(me.lastJudgement).slice(0, 30)}` : '由会议助手插件提供，取不到时会明确报错', '', null)}
+    </>
+  )
+}
+
+const RENDERERS = { calendar, tasks, mail, quotes, brief, alerts, clock, next, quick, meeting }
 
 /** 渲染一个原子实例。 */
 export function renderAtom(atom, ctx) {

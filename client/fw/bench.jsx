@@ -6,8 +6,9 @@ import { dispatchOps, openMail, setDesk, toast, useDesk } from '../desk.js'
 import { renderAtom } from './atoms.jsx'
 import { FwWidget, fwIconUrl, sizeOfWidget, useFwWidgets } from './fwwidgets.jsx'
 import { GenuiAtom, sanitizeSpec, specUsable } from './genui.jsx'
+import { useSources } from './sources.js'
 import { SessionRail } from './session-rail.jsx'
-import { ATOMS, SIZES, cellCount, columnsFor, defaultLayout, isKnownType, loadLayout, newId, planLayout, sanitize, saveLayout } from './layout.js'
+import { ATOMS, SIZES, SOURCE_NAMES, cellCount, columnsFor, defaultLayout, isKnownType, loadLayout, newId, planLayout, sanitize, saveLayout } from './layout.js'
 
 const THEMES = [
   { id: 'instrument', label: '量被画出来' },
@@ -20,6 +21,7 @@ const EXAMPLES = [
   '{"title":"风险提示","items":[{"type":"callout","tone":"warning","title":"两封邮件待回复","content":"陈欣与周舟都在等确认。"},{"type":"steps","current":1,"steps":["确认会议时间","回复评审材料"]}]}',
   '{"title":"今日三件事","items":[{"type":"list","items":[{"title":"准备评审材料","desc":"14:00 前"},{"title":"回复会议确认","desc":"今天"},{"title":"整理项目进展","desc":"明天"}]}]}',
   '{"title":"三档规格","items":[],"views":{"s":{"title":"6 个会","items":[{"type":"stat","label":"今天","value":"6"}]},"m":{"title":"本周概览","items":[{"type":"progress","label":"待办完成","value":60},{"type":"list","items":["准备评审材料","回复会议确认"]}]},"l":{"title":"本周工作概览","items":[{"type":"chart","data":[{"label":"周一","value":2},{"label":"周二","value":1},{"label":"周三","value":3},{"label":"周四","value":2}]},{"type":"keyvalue","pairs":[{"key":"会议","value":"6 场"},{"key":"待办","value":"4 条"}]}]}}}',
+  '{"title":"会议助手盯场","items":[{"type":"keyvalue","pairs":[{"key":"运行","value":"{{meeting.running}}"},{"key":"采集","value":"{{meeting.capturing}}"},{"key":"监听","value":"{{meeting.heard}}"}]},{"type":"callout","tone":"accent","title":"实时数据","content":"这行数字每 2 秒刷新一次，取不到会议助手时会显示原因。"}]}',
 ]
 
 function widgetOf(widgets, type) {
@@ -305,12 +307,19 @@ export function WorkbenchView() {
   }
 
   const plan = planLayout(layout.atoms, columns)
+  // 只有声明了数据源的组件才拉数据；没有订阅时一次请求都不发。
+  const needed = React.useMemo(() => {
+    const names = layout.atoms.flatMap(atom => atom.sources ?? (atom.type === 'meeting' ? ['meeting'] : []))
+    return [...new Set(names)]
+  }, [layout.atoms])
+  const live = useSources(needed)
   const ctx = {
     state: state ?? { events: [], tasks: [], mails: [], watchlist: [], brief: null },
     quotes,
     alerts,
     mail,
     now,
+    sources: live.data,
     openCalendar: () => setDesk({ view: 'calendar' }),
     openToday: () => setDesk({ view: 'today' }),
     openMarket: () => setDesk({ view: 'market' }),
@@ -337,7 +346,9 @@ export function WorkbenchView() {
 
   const add = atom => {
     if (layout.atoms.length >= 24) { toast('最多 24 个组件位', { error: true }); return }
-    update(draftLayout => { draftLayout.atoms.push({ id: newId(), ...atom }) })
+    // 会议助手组件自带数据源声明；其它组件不订阅就不拉数据。
+    const sources = atom.sources ?? (atom.type === 'meeting' ? ['meeting'] : undefined)
+    update(draftLayout => { draftLayout.atoms.push({ id: newId(), ...atom, ...(sources ? { sources } : {}) }) })
     setPanel(null)
   }
 
@@ -346,7 +357,10 @@ export function WorkbenchView() {
     let spec
     try { spec = JSON.parse(draft) } catch (err) { toast(`JSON 解析失败：${err.message}`, { error: true }); return }
     if (!specUsable(spec)) { toast('规格不合法：至少需要一个白名单组件', { error: true }); return }
-    add({ type: 'genui', size: 'm', spec })
+    // 规格里写了 {{meeting.xxx}} 就自动订阅对应数据源，不用再单独勾选
+    const names = [...new Set([...JSON.stringify(spec).matchAll(/\{\{\s*([a-z]+)\./g)].map(match => match[1]))]
+    const sources = names.filter(name => SOURCE_NAMES.includes(name))
+    add({ type: 'genui', size: 'm', spec, ...(sources.length ? { sources } : {}) })
   }
 
    const filtered = fw.widgets.filter(widget => {
@@ -491,7 +505,7 @@ export function WorkbenchView() {
                     {widget ? (
                       <FwWidget widget={widget} instanceId={atom.id} theme={layout.theme} config={atom.config} />
                     ) : genui ? (
-                      <GenuiAtom spec={atom.spec} size={atom.size} />
+                      <GenuiAtom spec={atom.spec} size={atom.size} data={live.data} />
                     ) : state ? (
                       renderAtom(atom, ctx)
                     ) : <p className="fw-empty">正在读取工作台…</p>}
@@ -530,6 +544,7 @@ export function WorkbenchView() {
 
         <p className="fw-hint">
           占用 {cellCount(layout.atoms)} 格 · {remote === true ? `Host 保存（revision ${revision}）· Agent 可通过 workbench_inspect / workbench_apply 修改` : remote === false ? 'Host 接口不可用，暂存本机浏览器（重启 Harness 后自动切换为 Host 保存）' : '正在读取 Host 布局…'}
+          {needed.length ? ` · 数据源 ${needed.join(' / ')}${live.at ? `（最近 ${new Date(live.at).toLocaleTimeString('zh-CN', { hour12: false })}）` : '（读取中）'}${live.error ? ` · ${live.error}` : ''}` : ' · 没有组件订阅数据源'}
         </p>
 
         {configFor != null && layout.atoms[configFor] ? (

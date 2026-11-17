@@ -2,6 +2,7 @@
 // 规格来自布局（本机浏览器），后续由工作台工具写入 Host；这里先保证渲染与校验是同一套。
 import React from 'react'
 import { GENUI_NODE_TYPES, genuiSpecUsable, specDepthOk } from './layout.js'
+import { interpolate } from './sources.js'
 
 const MAX_NODES = 40
 const MAX_TEXT = 400
@@ -124,9 +125,11 @@ function Node({ node }) {
 }
 
 /** 渲染一张生成式卡片；返回 null 时由调用方显示“规格不合法”。 */
-export function GenuiAtom({ spec, size }) {
+export function GenuiAtom({ spec, size, data }) {
   const view = pickSpec(spec, size ?? 'm')
-  const clean = sanitizeSpec(view)
+  // 规格里的 {{meeting.running}} 这类占位符在渲染时才解析成实时值。
+  const filled = data ? interpolate(view, data) : view
+  const clean = sanitizeSpec(filled)
   if (!clean) return <p className="fw-empty">这张生成式卡片没有适合当前尺寸的规格。</p>
   return (
     <div className="fw-genui">

@@ -28,7 +28,11 @@ export const ATOMS = {
   clock: { label: '时钟', hint: '时间、日期、今天已过多少' },
   alerts: { label: '提醒', hint: '条数、前两条、全部' },
   quick: { label: '快捷入口', hint: '今日、日程、邮件、行情' },
+  meeting: { label: '会议助手', hint: '是否在听、采集、触发与播报计数（来自会议助手插件）' },
 }
+
+/** 组件可以声明订阅的数据源；Host 与客户端共用这份名字表。 */
+export const SOURCE_NAMES = ['desk', 'quotes', 'meeting']
 
 export const MAX_ATOMS = 24
 
@@ -134,6 +138,11 @@ export function sanitize(raw) {
     const entry = { id: atom.id, type: atom.type, size: atom.size }
     if (atom.config && typeof atom.config === 'object' && !Array.isArray(atom.config)) entry.config = atom.config
     if (atom.type === 'genui' && atom.spec && typeof atom.spec === 'object' && genuiSpecUsable(atom.spec)) entry.spec = atom.spec
+    // 组件声明的数据源：只保留已知名字，重复的去掉
+    if (Array.isArray(atom.sources)) {
+      const sources = [...new Set(atom.sources.filter(name => SOURCE_NAMES.includes(name)))].slice(0, 3)
+      if (sources.length) entry.sources = sources
+    }
     next.push(entry)
   }
   if (!next.length) return null

@@ -303,6 +303,20 @@ await page.waitForTimeout(400)
 console.log('底部卡片 UI 换档后高度链：', JSON.stringify(await scrollGeometry(page)))
 await page.screenshot({ path: join(outDir, 'shot-bench-genui-views.png') })
 
+// 数据源：会议助手组件订阅实时状态；取不到时必须说原因，不能假装有数据
+await page.click('.fw-bar button:has-text("添加组件")')
+await page.locator('.fw-panel-section').filter({ hasText: '内置原子' }).locator('button:has-text("会议助手")').click()
+await page.waitForTimeout(1200)
+const meetingInfo = await page.evaluate(() => {
+  const slot = [...document.querySelectorAll('.fw-slot')].find(node => node.querySelector('.fw-head h2')?.textContent === '会议助手')
+  return { found: Boolean(slot), body: slot?.querySelector('.fw-body')?.innerText?.trim() ?? '', hint: [...document.querySelectorAll('.fw-hint')].map(node => node.textContent).join(' | ') }
+})
+console.log('会议助手组件：', JSON.stringify({ found: meetingInfo.found, body: meetingInfo.body.slice(0, 60), sources: /数据源 meeting/.test(meetingInfo.hint) }))
+if (!meetingInfo.found) throw new Error('会议助手组件没有加进工作台')
+if (!meetingInfo.body) throw new Error('会议助手组件没有渲染任何状态')
+if (!/数据源 meeting/.test(meetingInfo.hint)) throw new Error('会议助手组件没有订阅数据源：' + meetingInfo.hint)
+await page.screenshot({ path: join(outDir, 'shot-bench-meeting.png') })
+
 // FullWidget 组件设置：打开 ⚙ 面板（先确保在编辑态）
 if (!(await page.locator('.fw-bar button:has-text("完成编辑")').count())) {
   await page.click('.fw-bar button:has-text("编辑布局")')
@@ -356,7 +370,7 @@ await page.waitForSelector('.fw-grid')
 await page.waitForTimeout(500)
 const afterAgent = await page.evaluate(() => ({
   slots: document.querySelectorAll('.fw-slot').length,
-  hint: document.querySelector('.fw-hint')?.textContent ?? '',
+  hint: [...document.querySelectorAll('.fw-hint')].map(node => node.textContent).join(' | '),
 }))
 console.log('刷新后：', JSON.stringify(afterAgent))
 if (!afterAgent.hint.includes('Host 保存')) throw new Error(`界面未切到 Host 权威存储：${afterAgent.hint}`)

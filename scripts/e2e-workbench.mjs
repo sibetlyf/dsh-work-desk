@@ -237,6 +237,24 @@ try {
     return `网格 ${shape.grid}/${shape.wf}px`
   })
 
+  // ── 数据源：目录、工作台自身数据、缺插件时的诚实降级 ─────────────
+  await step('数据源：目录齐全，工作台数据可用，缺插件时给原因', async () => {
+    const catalog = await (await fetch(`${base}/work-desk/sources`)).json()
+    for (const name of ['desk', 'quotes', 'meeting']) {
+      assert.ok(catalog.sources?.[name], `数据源目录缺少 ${name}`)
+      assert.ok(String(catalog.sources[name].description ?? '').length > 8, `${name} 缺少说明`)
+    }
+    const one = await (await fetch(`${base}/work-desk/source?names=desk,nope`)).json()
+    assert.equal(one.data.desk.available, true, '工作台自身数据应可用')
+    assert.equal(typeof one.data.desk.value.openTasks, 'number')
+    assert.equal(one.data.nope.available, false, '未知数据源必须不可用')
+    assert.match(one.data.nope.reason, /未知数据源/)
+    const meeting = await (await fetch(`${base}/work-desk/source?names=meeting`)).json()
+    assert.equal(typeof meeting.data.meeting.available, 'boolean')
+    if (!meeting.data.meeting.available) assert.match(meeting.data.meeting.reason, /meeting_agent_status|工具/, '降级原因要说清楚')
+    return `desk 可用（${one.data.desk.value.openTasks} 条待办），meeting ${meeting.data.meeting.available ? '可用' : '按原因降级'}`
+  })
+
   // ── 1. 8 列网格：桌面 8，容器 <880 → 4，<560 → 2 ────────────────
   const gridShape = () => page.evaluate(() => {
     const grid = document.querySelector('.fw-grid')

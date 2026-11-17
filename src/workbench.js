@@ -15,6 +15,7 @@ const MAX_ATOMS = 24
 const FW_TYPE = /^fw:[a-z0-9-]{1,32}$/
 const BUILTIN = new Set(['calendar', 'next', 'tasks', 'mail', 'quotes', 'brief', 'clock', 'alerts', 'quick'])
 const MAX_SPEC_ITEMS = 40
+const SOURCE_NAMES = ['desk', 'quotes', 'meeting']
 
 export function isKnownType(type) {
   return typeof type === 'string' && (BUILTIN.has(type) || type === 'genui' || FW_TYPE.test(type))
@@ -102,6 +103,11 @@ export function sanitizeWorkbench(raw) {
     seen.add(atom.id)
     const entry = { id: atom.id, type: atom.type, size: atom.size }
     if (isObject(atom.config)) entry.config = atom.config
+    // 组件声明的数据源：Host 只接受已知名字，重复的去掉
+    if (Array.isArray(atom.sources)) {
+      const sources = [...new Set(atom.sources.filter(name => typeof name === 'string' && SOURCE_NAMES.includes(name)))].slice(0, 3)
+      if (sources.length) entry.sources = sources
+    }
     if (atom.type === 'genui') {
       const spec = cleanSpec(atom.spec)
       if (spec) entry.spec = spec

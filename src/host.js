@@ -10,6 +10,7 @@ import { applyOps, newId } from './ops.js'
 import { QuoteBoard, fetchMinute, normalizeCode } from './quotes.js'
 import { mailConfigured, mailReady, Settings, publicSettings } from './settings.js'
 import { Store } from './store.js'
+import { SOURCES, collectSources } from './sources.js'
 import { WorkbenchStore } from './workbench.js'
 import { createScheduler, evaluateAlerts } from './sync.js'
 import { imapConfigOf, markMail, readMail, sendNow, syncInbox, testImap } from './mail/service.js'
@@ -340,6 +341,19 @@ async function route(ctx, desk, req, res) {
     if (path === 'workbench') {
       const layout = await desk.workbench.read()
       return json(res, 200, layout)
+    }
+    if (path === 'sources') return json(res, 200, { sources: SOURCES })
+    if (path === 'source') {
+      const names = String(url.searchParams.get('names') ?? 'desk').split(',').map(name => name.trim()).filter(Boolean).slice(0, 8)
+      const state = await desk.store.read()
+      const snap = desk.board.snapshot(codesOf(state))
+      const data = await collectSources(ctx, {
+        store: desk.store,
+        board: desk.board,
+        codesOf,
+        alertsOf: () => evaluateAlerts(state, snap.quotes),
+      }, names)
+      return json(res, 200, { data, at: new Date().toISOString() })
     }
     if (path === 'fw/file') {
       const id = String(url.searchParams.get('id') ?? '')
