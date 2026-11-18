@@ -5,7 +5,8 @@ import React from 'react'
 import { dispatchOps, openMail, setDesk, toast, useDesk } from '../desk.js'
 import { renderAtom } from './atoms.jsx'
 import { FwWidget, fwIconUrl, sizeOfWidget, useFwWidgets } from './fwwidgets.jsx'
-import { GenuiAtom, sanitizeSpec, specUsable } from './genui.jsx'
+import { GenuiAtom, pickSpec, sanitizeSpec, specUsable } from './genui.jsx'
+import { auditView } from './grammar.js'
 import { useSources } from './sources.js'
 import { SessionRail } from './session-rail.jsx'
 import { ATOMS, SIZES, SOURCE_NAMES, cellCount, columnsFor, defaultLayout, isKnownType, loadLayout, newId, planLayout, sanitize, saveLayout } from './layout.js'
@@ -309,7 +310,7 @@ export function WorkbenchView() {
   const plan = planLayout(layout.atoms, columns)
   // 只有声明了数据源的组件才拉数据；没有订阅时一次请求都不发。
   const needed = React.useMemo(() => {
-    const names = layout.atoms.flatMap(atom => atom.sources ?? (atom.type === 'meeting' ? ['meeting'] : []))
+    const names = layout.atoms.flatMap(atom => atom.sources ?? (atom.type === 'meeting' ? ['meeting', 'desk'] : []))
     return [...new Set(names)]
   }, [layout.atoms])
   const live = useSources(needed)
@@ -347,7 +348,7 @@ export function WorkbenchView() {
   const add = atom => {
     if (layout.atoms.length >= 24) { toast('最多 24 个组件位', { error: true }); return }
     // 会议助手组件自带数据源声明；其它组件不订阅就不拉数据。
-    const sources = atom.sources ?? (atom.type === 'meeting' ? ['meeting'] : undefined)
+    const sources = atom.sources ?? (atom.type === 'meeting' ? ['meeting', 'desk'] : undefined)
     update(draftLayout => { draftLayout.atoms.push({ id: newId(), ...atom, ...(sources ? { sources } : {}) }) })
     setPanel(null)
   }
@@ -433,23 +434,34 @@ export function WorkbenchView() {
 
         {editing ? <p className="fw-hint">拖动卡片换位置：虚线格子是可用位置；右上角切 小／中／大 或移除。</p> : null}
 
-        {preview ? (
-          <section className="fw-live-preview" aria-label="生成 UI 实时预览">
-            <header>
-              <strong>{preview.complete ? '生成 UI 预览' : '生成中 · 实时预览'}</strong>
-              <div className="fw-seg" aria-label="预览尺寸">
-                {Object.entries(SIZES).map(([size, meta]) => <button type="button" key={size} aria-pressed={previewSize === size} onClick={() => setPreviewSize(size)}>{meta.label}</button>)}
-              </div>
-              <button type="button" className="fw-btn" disabled={!preview.complete || addedPreview === JSON.stringify(preview.spec)} onClick={() => {
-                if (layout.atoms.length >= 24) { toast('最多 24 个组件位', { error: true }); return }
-                add({ type: 'genui', size: previewSize, spec: preview.spec })
-                setAddedPreview(JSON.stringify(preview.spec))
-              }}>{addedPreview === JSON.stringify(preview.spec) ? '已加入组件' : '＋ 加入组件'}</button>
-            </header>
-            <div className={`fw-preview-body is-${previewSize}`}><GenuiAtom spec={preview.spec} size={previewSize} /></div>
-            {!preview.complete ? <small>已解析的内容会逐步出现；规格完整后才能加入。</small> : null}
-          </section>
-        ) : null}
+        {preview ? (() => {
+          const audit = auditView(pickSpec(preview.spec, previewSize), previewSize)
+          const busy = !preview.complete || audit.blocked || addedPreview === JSON.stringify(preview.spec)
+          return (
+            <section className="fw-live-preview" aria-label="生成 UI 实时预览">
+              <header>
+                <strong>{preview.complete ? '生成 UI 预览' : '生成中 · 实时预览'}</strong>
+                <span className={`fw-score is-${audit.blocked ? 'fail' : audit.score >= 80 ? 'pass' : 'warn'}`} title="按 dsh-widgets 空间语法打分">语法 {audit.score}</span>
+                <div className="fw-seg" aria-label="预览尺寸">
+                  {Object.entries(SIZES).map(([size, meta]) => <button type="button" key={size} aria-pressed={previewSize === size} onClick={() => setPreviewSize(size)}>{meta.label}</button>)}
+                </div>
+                <button type="button" className="fw-btn" disabled={busy} onClick={() => {
+                  if (layout.atoms.length >= 24) { toast('最多 24 个组件位', { error: true }); return }
+                  if (audit.blocked) { toast(audit.issues[0] ?? '规格不符合空间语法', { error: true }); return }
+                  add({ type: 'genui', size: previewSize, spec: preview.spec })
+                  setAddedPreview(JSON.stringify(preview.spec))
+                }}>{addedPreview === JSON.stringify(preview.spec) ? '已加入组件' : '＋ 加入组件'}</button>
+              </header>
+              <div className={`fw-preview-body is-${previewSize}`}><GenuiAtom spec={preview.spec} size={previewSize} /></div>
+              {audit.issues.length ? (
+                <ul className="fw-issues" aria-label="语法提示">
+                  {audit.issues.slice(0, 3).map(issue => <li key={issue}>{issue}</li>)}
+                </ul>
+              ) : null}
+              {!preview.complete ? <small>已解析的内容会逐步出现；规格完整后才能加入。</small> : null}
+            </section>
+          )
+        })() : null}
         <div className="fw-grid" aria-label="工作台组件网格" style={{ '--fw-cols': columns }}>
           {editing ? (
             <div className="fw-cells" aria-hidden="true" style={{ gridRow: `1 / span ${plan.rows}` }}>

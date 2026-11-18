@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { describe } from 'node:test'
-import { SOURCES, collectSources, deskSource, meetingSource, quotesSource } from '../src/sources.js'
+import { SOURCES, collectSources, deskSource, meetingSource, quotesSource, upcomingEvents } from '../src/sources.js'
 import { interpolate } from '../client/fw/interp.js'
 
 describe('数据源：工作台自身', () => {
@@ -107,5 +107,40 @@ describe('占位符：渲染时才解析', () => {
     const data = { meeting: { available: true, value: { heard: 7 } } }
     const spec = { title: '盯场 {{meeting.heard}}', items: [{ type: 'list', items: ['{{meeting.heard}} 条'] }] }
     assert.deepEqual(interpolate(spec, data), { title: '盯场 7', items: [{ type: 'list', items: ['7 条'] }] })
+  })
+})
+
+describe('会议与待办结合', () => {
+  test('upcomingEvents 只留未结束的、按开始时间排序并带分钟数', () => {
+    const now = new Date('2026-11-17T09:00:00+08:00')
+    const state = {
+      events: [
+        { id: 'late', title: '改版评审', start: '2026-11-17T14:00:00+08:00', end: '2026-11-17T15:00:00+08:00', status: 'confirmed' },
+        { id: 'soon', title: '产品周会', start: '2026-11-17T09:30:00+08:00', end: '2026-11-17T10:00:00+08:00', status: 'confirmed', location: '3 楼' },
+        { id: 'gone', title: '已结束', start: '2026-11-17T08:00:00+08:00', end: '2026-11-17T08:30:00+08:00', status: 'confirmed' },
+        { id: 'cancel', title: '取消的会', start: '2026-11-17T09:10:00+08:00', status: 'cancelled' },
+      ],
+    }
+    const rows = upcomingEvents(state, now, 5)
+    assert.deepEqual(rows.map(row => row.id), ['soon', 'late'])
+    assert.equal(rows[0].minutesUntil, 30)
+    assert.equal(rows[0].location, '3 楼')
+    assert.equal(rows[1].minutesUntil, 300)
+    assert.equal(upcomingEvents(state, now, 1).length, 1, 'limit 生效')
+  })
+
+  test('deskSource 同时给出接下来会议与会前待办', () => {
+    const now = new Date()
+    const soon = new Date(now.getTime() + 20 * 60000).toISOString()
+    const later = new Date(now.getTime() + 5 * 60000).toISOString()
+    const state = {
+      events: [{ id: 'e1', title: '马上开', start: soon, end: new Date(now.getTime() + 60 * 60000).toISOString(), status: 'confirmed' }],
+      tasks: [{ id: 't1', title: '准备材料', due: later, done: false }, { id: 't2', title: '已完成', done: true }],
+  }
+    const value = deskSource(state).value
+    assert.equal(value.nextEvents.length, 1)
+    assert.equal(value.nextEvents[0].title, '马上开')
+    assert.deepEqual(value.dueTasks.map(task => task.id), ['t1'])
+    assert.equal(value.openTasks, 1)
   })
 })

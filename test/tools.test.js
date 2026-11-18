@@ -102,8 +102,10 @@ test('参数不合法时抛错，不会留下半条数据', async () => {
 
 test('列日程只给未来 N 天，且不含取消的', async () => {
   const { tools, state } = harness()
-  state.events.push({ id: 'e_next', title: '下周的会', start: '2026-11-20T10:00:00+08:00', end: '2026-11-20T10:30:00+08:00', status: 'confirmed' })
-  state.events.push({ id: 'e_cancel', title: '取消的会', start: '2026-11-11T10:00:00+08:00', end: '2026-11-11T10:30:00+08:00', status: 'cancelled' })
+  // 相对“此刻”生成，避免写死日期过期后窗口外/窗内判断翻转
+  const at = offset => new Date(Date.now() + offset * 86400000).toISOString()
+  state.events.push({ id: 'e_next', title: '下周的会', start: at(5), end: at(5), status: 'confirmed' })
+  state.events.push({ id: 'e_cancel', title: '取消的会', start: at(2), end: at(2), status: 'cancelled' })
   const result = await tools.get('work_desk_calendar').execute({ action: 'list', days: 3 })
   assert.ok(result.events.every(event => event.status !== 'cancelled'))
   assert.ok(!result.events.some(event => event.title === '下周的会'))

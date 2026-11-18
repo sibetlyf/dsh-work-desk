@@ -369,68 +369,89 @@ function quick(atom, ctx) {
   )
 }
 
+
+
+/** 会议助手：把「马上要开的会」和「会前待办」放在一起，状态取不到就只说原因。 */
 function meeting(atom, ctx) {
-  const { size, sources, openToday } = ctx
-  const row = sources?.meeting
-  if (!row) return <p className="fw-empty">正在读取会议助手状态…</p>
-  if (!row.available) {
-    return (
-      <>
-        <p className="fw-empty">读不到会议助手：{row.reason}</p>
-        {size === 'l' ? <span className="fw-label">装好会议助手插件后，这里会自动显示它的运行状态。</span> : null}
-      </>
-    )
-  }
-  const me = row.value ?? {}
-  const state = me.running ? '正在听' : '未运行'
+  const { size, sources, openToday, openCalendar } = ctx
+  const assistant = sources?.meeting
+  const desk = sources?.desk?.value ?? {}
+  const next = desk.nextEvents ?? []
+  const tasks = desk.dueTasks ?? []
+  const please = Number(desk.openTasks ?? 0)
+  const state = !assistant ? '读取中' : !assistant.available ? '不可用' : (assistant.value?.running ? '正在听' : '未运行')
+  const live = assistant?.available ? (assistant.value?.capturing ? '采集中' : '未采集') : '—'
+  const nextEvent = next[0]
+  const until = nextEvent ? (nextEvent.running ? '进行中' : nextEvent.minutesUntil <= 0 ? '马上开始' : `${nextEvent.minutesUntil} 分钟后`) : '接下来没有会'
+
   if (size === 's') {
     return (
-      <button type="button" className="fw-link" onClick={openToday}>
+      <button type="button" className="fw-link" onClick={openCalendar}>
         <div className="fw-hero">
-          <span className="fw-display" style={{ fontSize: 26 }}>{me.heard ?? 0}</span>
+          <span className="fw-display" style={{ fontSize: 26 }}>{nextEvent ? fmtTime(nextEvent.start) : '—'}</span>
           <div>
-            <strong>{state}</strong>
-            <small>{me.capturing ? '正在采集' : '未采集'}</small>
+            <strong>{nextEvent ? nextEvent.title : '没有会'}</strong>
+            <small>{nextEvent ? until : `${please} 条待办`}</small>
           </div>
         </div>
       </button>
     )
   }
-  const pairs = [
-    ['运行状态', state],
-    ['音频采集', me.capturing ? '采集中' : '未采集'],
-    ['触发 / 播报', `${me.triggered ?? 0} / ${me.spoken ?? 0}`],
-  ]
+
   if (size === 'm') {
     return (
-      <div className="fw-list" style={{ justifyContent: 'center', gap: 6 }}>
-        {pairs.slice(0, 2).map(([key, value]) => (
-          <div key={key} className="fw-row">
-            <span className="fw-label" style={{ flex: 'none', width: 64 }}>{key}</span>
-            <b style={{ flex: 1 }}>{value}</b>
+      <>
+        {next.length === 0 ? <p className="fw-empty">接下来没有会。</p> : next.slice(0, 2).map(event => (
+          <div key={event.id} className={`fw-row ${event.running ? 'is-now' : ''}`}>
+            <time>{fmtTime(event.start)}</time>
+            <div className="fw-row-main"><b>{event.title}</b></div>
+            <span className="fw-label">{event.running ? '进行中' : `${event.minutesUntil} 分钟`}</span>
           </div>
         ))}
-      </div>
+        <footer className="fw-foot">
+          <span>{`助手 ${state} · ${live}`}</span>
+          <button type="button" onClick={openToday}>{`待办 ${please} 条`} ↗</button>
+        </footer>
+      </>
     )
   }
+
   return (
     <>
-      <div className={`fw-hero`} style={{ flex: 'none' }}>
-        <span className="fw-display" style={{ fontSize: 30 }}>{me.heard ?? 0}</span>
+      <div className="fw-hero" style={{ flex: 'none' }}>
+        <span className="fw-display" style={{ fontSize: 30 }}>{next.length}</span>
         <div>
-          <strong>{state}</strong>
-          <small>{me.mode ? `策略 ${me.mode}` : '未设置策略'}{me.model ? ` · ${me.model}` : ''}</small>
+          <strong>{nextEvent ? nextEvent.title : '接下来没有会'}</strong>
+          <small>{`${until}${nextEvent?.location ? ` · ${nextEvent.location}` : ''} · 助手 ${state}`}</small>
         </div>
       </div>
       <hr className="fw-rule" />
-      <dl className="fw-gkv">
-        {pairs.map(([key, value]) => (
-          <React.Fragment key={key}><dt>{key}</dt><dd>{value}</dd></React.Fragment>
+      <div className="fw-list">
+        {next.length === 0 ? <p className="fw-empty">今天之后没有安排。</p> : next.slice(0, 4).map(event => (
+          <div key={event.id} className={`fw-row ${event.running ? 'is-now' : ''}`}>
+            <time>{fmtTime(event.start)}</time>
+            <span className="fw-dot" />
+            <div className="fw-row-main">
+              <b>{event.title}</b>
+              <small>{event.running ? '进行中' : `${relativeDay(event.start, ctx.now)} · ${event.minutesUntil} 分钟后`}{event.location ? ` · ${event.location}` : ''}</small>
+            </div>
+          </div>
         ))}
-        <dt>监听 / 触发 / 播报 / 错误</dt>
-        <dd>{`${me.heard ?? 0} / ${me.triggered ?? 0} / ${me.spoken ?? 0} / ${me.errors ?? 0}`}</dd>
-      </dl>
-      {foot(me.lastJudgement ? `最近判定：${String(me.lastJudgement).slice(0, 30)}` : '由会议助手插件提供，取不到时会明确报错', '', null)}
+        {tasks.length ? <hr className="fw-rule" style={{ margin: '6px 0' }} /> : null}
+        {tasks.slice(0, 3).map(task => (
+          <div key={task.id} className="fw-row">
+            <span className="fw-dot" style={{ background: 'transparent' }} />
+            <div className="fw-row-main"><b>{task.title}</b><small>待办{task.due ? ` · ${relativeDay(task.due, ctx.now)}` : ''}</small></div>
+          </div>
+        ))}
+      </div>
+      {foot(
+        assistant?.available
+          ? `监听 ${assistant.value?.heard ?? 0} · 触发 ${assistant.value?.triggered ?? 0} · 播报 ${assistant.value?.spoken ?? 0}`
+          : `会议助手：${assistant?.reason ?? '读取中'}`,
+        '日历',
+        openCalendar,
+      )}
     </>
   )
 }

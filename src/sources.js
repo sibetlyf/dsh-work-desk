@@ -30,17 +30,43 @@ export function deskSource(state, { alerts = [] } = {}) {
   const now = new Date()
   const day = now.toDateString()
   const events = (state?.events ?? []).filter(event => event.status !== 'cancelled')
+  const open = (state?.tasks ?? []).filter(task => !task.done)
   return {
     available: true,
     value: {
       todayEvents: events.filter(event => new Date(event.start).toDateString() === day).length,
-      openTasks: (state?.tasks ?? []).filter(task => !task.done).length,
+      openTasks: open.length,
       unreadMail: (state?.mails ?? []).filter(mail => mail.unread).length,
       watchlist: (state?.watchlist ?? []).length,
       alerts: alerts.length,
+      // 马上要开的会：从现在起、未取消，最多 5 场；秒级倒计时在前端算，这里给分钟数便于直接展示
+      nextEvents: upcomingEvents(state, now, 5),
+      // 待办与会议结合：未完成、按截止时间排序，最多 8 条
+      dueTasks: open
+        .slice()
+        .sort((a, b) => (a.due ? new Date(a.due) : Infinity) - (b.due ? new Date(b.due) : Infinity))
+        .slice(0, 8)
+        .map(task => ({ id: task.id, title: task.title, due: task.due ?? null })),
       updatedAt: now.toISOString(),
     },
   }
+}
+
+/** 接下来的会议：只取未取消、还没结束的，按开始时间排序。 */
+export function upcomingEvents(state, now = new Date(), limit = 5) {
+  return (state?.events ?? [])
+    .filter(event => event.status !== 'cancelled' && new Date(event.end ?? event.start) > now)
+    .sort((a, b) => new Date(a.start) - new Date(b.start))
+    .slice(0, limit)
+    .map(event => ({
+      id: event.id,
+      title: event.title,
+      start: event.start,
+      end: event.end ?? null,
+      location: event.location ?? null,
+      minutesUntil: Math.round((new Date(event.start) - now) / 60000),
+      running: new Date(event.start) <= now,
+    }))
 }
 
 /** 行情：取缓存快照，不在这里发网络请求（刷新由行情页/定时任务负责）。 */

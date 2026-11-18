@@ -18,3 +18,14 @@
   .fw-shell > .fw-rail { width: min(380px, calc(100% - 20px)); top: 64px; }
   .fw-rail .wd-btn, .fw-rail .wd-session-pick { min-height: 44px; }
 }
+
+/* 空间语法：主读数按单元缩放（150px 为基准），说明退到说明字号 */
+.fw-score { font-size: 10px; padding: 2px 7px; border-radius: 99px; border: 1px solid var(--fw-border); color: var(--fw-fg-muted); }
+.fw-score.is-pass { color: #a7d8c1; border-color: #7fbfa0; }
+.fw-score.is-warn { color: #e7c58f; border-color: #d6ab6a; }
+.fw-score.is-fail { color: #e9ada4; border-color: #cf8a83; }
+.fw-issues { margin: 0; padding: 0 0 0 14px; font-size: 10px; line-height: 1.6; color: var(--fw-fg-muted); }
+.fw-issues li { list-style: disc; }
+.fw-preview-body.is-s .fw-gstat-value { font-size: 20px; }
+.fw-preview-body.is-m .fw-gstat-value { font-size: 26px; }
+.fw-preview-body.is-l .fw-gstat-value { font-size: 32px; }
