@@ -438,7 +438,7 @@ export function WorkbenchView() {
           const audit = auditView(pickSpec(preview.spec, previewSize), previewSize)
           const busy = !preview.complete || audit.blocked || addedPreview === JSON.stringify(preview.spec)
           return (
-            <section className="fw-live-preview" aria-label="生成 UI 实时预览">
+            <section className={`fw-live-preview is-${previewSize}`} aria-label="生成 UI 实时预览">
               <header>
                 <strong>{preview.complete ? '生成 UI 预览' : '生成中 · 实时预览'}</strong>
                 <span className={`fw-score is-${audit.blocked ? 'fail' : audit.score >= 80 ? 'pass' : 'warn'}`} title="按 dsh-widgets 空间语法打分">语法 {audit.score}</span>
