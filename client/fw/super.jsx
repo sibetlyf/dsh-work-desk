@@ -105,6 +105,7 @@ function Comments({ state, selected, refresh }) {
             <div><b>{atom ? nameOf(atom) : '整个工作台'}</b><small>{row.status === 'resolved' ? '已处理' : '待处理'}</small></div>
             <p>{row.text}</p>
             {row.status === 'open' ? <button type="button" className="fw-btn" onClick={() => resolve(row.id)}>标记完成</button> : null}
+            <button type="button" className="fw-btn" onClick={async () => { try { await call('super/comment', { action: 'remove', id: row.id }); await refresh() } catch (error) { toast(error.message, { error: true }) } }}>删除</button>
           </div>
         })}
       </div>
@@ -185,6 +186,11 @@ export function SuperDesignView({ useSessions }) {
             </div>
             {selectedAtom ? <div className="fw-seg" aria-label="尺寸">
               {Object.entries(SIZES).map(([size, meta]) => <button type="button" key={size} aria-pressed={selectedAtom.size === size} onClick={() => ops([{ op: 'resize', id: selectedAtom.id, size }])}>{meta.label}</button>)}
+            </div> : null}
+            {selectedAtom ? <div className="fw-seg" aria-label="排序">
+              <button type="button" disabled={busy} onClick={() => ops([{ op: 'move', id: selectedAtom.id, to: Math.max(0, (state?.draft?.atoms ?? []).findIndex(atom => atom.id === selectedAtom.id) - 1) }])}>↑</button>
+              <button type="button" disabled={busy} onClick={() => ops([{ op: 'move', id: selectedAtom.id, to: Math.min((state?.draft?.atoms ?? []).length - 1, (state?.draft?.atoms ?? []).findIndex(atom => atom.id === selectedAtom.id) + 1) }])}>↓</button>
+              <button type="button" disabled={busy} onClick={() => ops([{ op: 'remove', id: selectedAtom.id }])}>移除</button>
             </div> : null}
             {selectedAtom ? <span className="super-selected">选中：{nameOf(selectedAtom)}</span> : <span className="super-selected">未选中组件</span>}
           </div>
