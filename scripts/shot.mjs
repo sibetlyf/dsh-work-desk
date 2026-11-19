@@ -89,13 +89,13 @@ const panels = {}
 const ctx = {
   slots: {
     inject(_name, fn) { fn() },
-    register(def, Comp) { panels[def.name] = Comp; return () => {} },
+    register(def, Comp) { panels[def.key ?? def.name] = Comp; return () => {} },
   },
 }
 const plugin = window.__modules['dsh-work-desk']
 plugin.apply(ctx)
 const root = window.ReactDOMClient.createRoot(document.getElementById('root'))
-root.render(window.React.createElement(panels['main']))
+root.render(window.React.createElement(panels['work-desk'] ?? panels['main']))
 </script></body></html>`
 
 const server = http.createServer(async (req, res) => {
@@ -141,7 +141,7 @@ await fetch(`${base}/work-desk/ops`, {
 })
 
 await page.goto(base, { waitUntil: 'networkidle' })
-await page.waitForSelector('.wd-hero-line', { timeout: 20_000 })
+try { await page.waitForSelector('.wd-hero-line', { timeout: 8000 }) } catch (err) { console.error('BODY', (await page.evaluate(() => document.body.innerText)).slice(0, 400)); throw err }
 await page.waitForTimeout(1200)
 await page.screenshot({ path: join(outDir, 'shot-today.png') })
 console.log('today ok')

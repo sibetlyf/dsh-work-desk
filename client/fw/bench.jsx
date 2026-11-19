@@ -135,7 +135,9 @@ export function WorkbenchView() {
   const [previewSize, setPreviewSize] = React.useState('m')
   const [addedPreview, setAddedPreview] = React.useState('')
   const activityRef = React.useRef({ running: false })
-  const onActivity = React.useCallback(activity => { activityRef.current = activity }, [])
+  const sendRef = React.useRef(null)
+  const [comment, setComment] = React.useState('')
+  const onActivity = React.useCallback(activity => { activityRef.current = activity; if (activity?.send) sendRef.current = activity }, [])
   const onPreview = React.useCallback(candidate => setPreview(prev => JSON.stringify(prev) === JSON.stringify(candidate) ? prev : candidate), [])
   const [columns, setColumns] = React.useState(8)
   const saveTimer = React.useRef(null)
@@ -435,34 +437,7 @@ export function WorkbenchView() {
 
         {editing ? <p className="fw-hint">拖动卡片换位置：虚线格子是可用位置；右上角切 小／中／大 或移除。</p> : null}
 
-        {preview ? (() => {
-          const audit = auditView(pickSpec(preview.spec, previewSize), previewSize)
-          const busy = !preview.complete || audit.blocked || addedPreview === JSON.stringify(preview.spec)
-          return (
-            <section className={`fw-live-preview is-${previewSize}`} aria-label="生成 UI 实时预览">
-              <header>
-                <strong>{preview.complete ? '生成 UI 预览' : '生成中 · 实时预览'}</strong>
-                <span className={`fw-score is-${audit.blocked ? 'fail' : audit.score >= 80 ? 'pass' : 'warn'}`} title="按 dsh-widgets 空间语法打分">语法 {audit.score}</span>
-                <div className="fw-seg" aria-label="预览尺寸">
-                  {Object.entries(SIZES).map(([size, meta]) => <button type="button" key={size} aria-pressed={previewSize === size} onClick={() => setPreviewSize(size)}>{meta.label}</button>)}
-                </div>
-                <button type="button" className="fw-btn" disabled={busy} onClick={() => {
-                  if (layout.atoms.length >= 24) { toast('最多 24 个组件位', { error: true }); return }
-                  if (audit.blocked) { toast(audit.issues[0] ?? '规格不符合空间语法', { error: true }); return }
-                  add({ type: 'genui', size: previewSize, spec: preview.spec })
-                  setAddedPreview(JSON.stringify(preview.spec))
-                }}>{addedPreview === JSON.stringify(preview.spec) ? '已加入组件' : '＋ 加入组件'}</button>
-              </header>
-              <div className={`fw-preview-body is-${previewSize}`}><GenuiAtom spec={preview.spec} size={previewSize} /></div>
-              {audit.issues.length ? (
-                <ul className="fw-issues" aria-label="语法提示">
-                  {audit.issues.slice(0, 3).map(issue => <li key={issue}>{issue}</li>)}
-                </ul>
-              ) : null}
-              {!preview.complete ? <small>已解析的内容会逐步出现；规格完整后才能加入。</small> : null}
-            </section>
-          )
-        })() : null}
+        {/* 生成预览放在右侧画布栏（见 fw-canvas），不挤占网格高度 */}
         <div className="fw-grid" aria-label="工作台组件网格" style={{ '--fw-cols': columns }}>
           {editing ? (
             <div className="fw-cells" aria-hidden="true" style={{ gridRow: `1 / span ${plan.rows}` }}>
@@ -573,6 +548,46 @@ export function WorkbenchView() {
           />
         ) : null}
       </div>
+        {preview ? (() => {
+          const audit = auditView(pickSpec(preview.spec, previewSize), previewSize)
+          const busy = !preview.complete || audit.blocked || addedPreview === JSON.stringify(preview.spec)
+          return (
+            <aside className="fw-canvas" aria-label="设计画布">
+              <header className="fw-canvas-head">
+                <strong>{preview.complete ? '设计画布' : '生成中…'}</strong>
+                <span className={`fw-score is-${audit.blocked ? 'fail' : audit.score >= 80 ? 'pass' : 'warn'}`} title="按 dsh-widgets 空间语法打分">语法 {audit.score}</span>
+              </header>
+              <div className="fw-seg fw-canvas-sizes" aria-label="画布尺寸">
+                {Object.entries(SIZES).map(([size, meta]) => <button type="button" key={size} aria-pressed={previewSize === size} onClick={() => setPreviewSize(size)}>{meta.label}</button>)}
+              </div>
+              <div className={`fw-canvas-stage is-${previewSize}`}>
+                <div className={`fw-preview-body is-${previewSize}`}><GenuiAtom spec={preview.spec} size={previewSize} /></div>
+              </div>
+              {audit.issues.length ? (
+                <ul className="fw-issues" aria-label="语法提示">
+                  {audit.issues.slice(0, 3).map(issue => <li key={issue}>{issue}</li>)}
+                </ul>
+              ) : null}
+              <button type="button" className="fw-btn is-on" disabled={busy} onClick={() => {
+                if (layout.atoms.length >= 24) { toast('最多 24 个组件位', { error: true }); return }
+                if (audit.blocked) { toast(audit.issues[0] ?? '规格不符合空间语法', { error: true }); return }
+                add({ type: 'genui', size: previewSize, spec: preview.spec })
+                setAddedPreview(JSON.stringify(preview.spec))
+              }}>{addedPreview === JSON.stringify(preview.spec) ? '已加入组件' : '＋ 加入组件'}</button>
+              {!preview.complete ? <small className="fw-canvas-note">已解析的内容会逐步出现；规格完整后才能加入。</small> : null}
+              <form className="fw-canvas-comment" onSubmit={event => {
+                event.preventDefault()
+                const value = comment.trim()
+                if (!value || !sendRef.current) { toast('先在右侧会话里绑定一条会话', { error: true }); return }
+                sendRef.current.comment(`对上面这张卡片批注：${value}`)
+                setComment('')
+              }}>
+                <input aria-label="给卡片写批注" value={comment} onChange={event => setComment(event.target.value)} placeholder="批注这一处要改什么，回到同一会话继续改" />
+                <button type="submit" className="fw-btn" disabled={!comment.trim()}>批注</button>
+              </form>
+            </aside>
+          )
+        })() : null}
         {railOpen ? <SessionRail onClose={() => { railTouched.current = true; setRailOpen(false) }} onPreview={onPreview} onActivity={onActivity} /> : null}
       </div>
     </div>

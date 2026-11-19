@@ -172,7 +172,7 @@ export function SessionDock({ useSessions, head, embedded = false, onClose, onPr
     const candidate = previewFromText(liveText) ?? (recent ? previewFromText(recent.text) : null)
     previewRef.current?.(candidate ? { ...candidate, sessionId } : null)
   }, [liveText, messages, sessionId])
-  React.useEffect(() => { activityRef.current?.({ running: !!snapshot?.running, sessionId }) }, [snapshot?.running, sessionId])
+  React.useEffect(() => { activityRef.current?.({ running: !!snapshot?.running, sessionId, send: value => deliver(value), comment: value => deliver(value + UI_CREATION_HINT) }) }, [snapshot?.running, sessionId, binding])
 
   React.useEffect(() => {
     if (scroller.current) scroller.current.scrollTo({ top: scroller.current.scrollHeight, behavior: 'smooth' })

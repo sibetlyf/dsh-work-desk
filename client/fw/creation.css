@@ -73,3 +73,30 @@
   .super-body { grid-template-columns: minmax(0, 1fr); }
   .super-right { border-left: 0; border-top: 1px solid var(--fw-border); min-height: 520px; }
 }
+
+/* 设计画布：右侧常驻，生成预览与批注都在这里，和会话栏并排 */
+.fw-canvas {
+  flex: none;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  overflow: auto;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--fw-card-solid) 78%, transparent);
+  border: 1px solid var(--fw-accent);
+}
+.fw-canvas-head { display: flex; align-items: center; gap: 8px; }
+.fw-canvas-head strong { flex: 1; font-size: 12px; color: var(--fw-fg); }
+.fw-canvas-sizes { align-self: flex-start; }
+.fw-canvas-stage { flex: 1 1 auto; min-height: 120px; overflow: auto; display: flex; align-items: flex-start; justify-content: center; padding: 10px; border-radius: 10px; background: var(--fw-hover); }
+.fw-canvas-note { font-size: 10px; color: var(--fw-fg-muted); }
+.fw-canvas-comment { display: flex; gap: 6px; }
+.fw-canvas-comment input { flex: 1; min-width: 0; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--fw-border); background: var(--fw-control); color: var(--fw-fg); font: inherit; font-size: 11px; }
+@media (max-width: 1200px) {
+  .fw-canvas { width: 260px; }
+}
+@media (max-width: 900px) {
+  .fw-canvas { position: absolute; right: 10px; top: 64px; bottom: 10px; z-index: 7; width: min(320px, calc(100% - 20px)); box-shadow: 0 18px 50px rgba(0, 0, 0, .45); }
+}

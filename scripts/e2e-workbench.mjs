@@ -90,13 +90,13 @@ const panels = {}
 const ctx = {
   slots: {
     inject(_name, fn) { fn() },
-    register(def, Comp) { panels[def.name] = Comp; return () => {} },
+    register(def, Comp) { panels[def.key ?? def.name] = Comp; return () => {} },
   },
 }
 const plugin = window.__modules['dsh-work-desk']
 plugin.apply(ctx)
 const root = window.ReactDOMClient.createRoot(document.getElementById('root'))
-root.render(window.React.createElement(panels['main']))
+root.render(window.React.createElement(panels['work-desk'] ?? panels['main']))
 </script></body></html>`
 
 const server = http.createServer(async (req, res) => {
