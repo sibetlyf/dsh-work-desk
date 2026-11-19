@@ -451,8 +451,54 @@ export function registerTools(ctx, desk) {
     },
   }
 
-  const disposers = [calendar, task, stateTool, mailTool, marketTool, inspectTool, applyTool].map(definition => ctx.get('tools').register(definition))
+  const superTool = {
+    name: 'super_design',
+    description: '超级创模式草稿工具：读取或修改独立的超级创草稿，添加批注，或把草稿发布到正式工作台。优先用 super_design，不要直接改 workbench_apply，除非用户明确要跳过草稿。',
+    parameters: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['inspect', 'ops', 'comment', 'publish'], description: '要做什么' },
+        ops: { type: 'array', items: { type: 'object', additionalProperties: true }, description: 'action=ops 时的布局操作' },
+        atomId: { type: 'string', description: '批注挂到哪个组件；省略表示整个工作台' },
+        text: { type: 'string', description: 'action=comment 时的批注正文' },
+        baseRevision: { type: 'number', description: '可选：发布时使用的草稿基线 revision' },
+      },
+      required: ['action'],
+      additionalProperties: false,
+    },
+    output: {
+      schema: { type: 'object', properties: { receipt: { type: 'string' }, state: { type: 'object', additionalProperties: true } }, additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: value?.receipt ?? '完成' }],
+    },
+    async execute(args) {
+      const action = String(args?.action ?? '')
+      if (action === 'inspect') {
+        const state = await desk.superDesign.state()
+        const lines = state.draft.atoms.map(atom => `- ${atom.id}｜${atom.type}｜${atom.size}`)
+        return {
+          receipt: `超级创草稿 revision ${state.revision}｜${state.draft.theme}｜${state.draft.atoms.length} 个组件｜${state.comments.filter(row => row.status === 'open').length} 条未处理批注${state.stale ? '｜正式工作台已变化，发布可能冲突' : ''}\n${lines.join('\n')}`,
+          state,
+        }
+      }
+      if (action === 'ops') {
+        const result = await desk.superDesign.applyOps(args?.ops ?? [])
+        return { receipt: `已写入超级创草稿：${(result.applied ?? []).join('，')}`, state: result }
+      }
+      if (action === 'comment') {
+        const state = await desk.superDesign.comment({ action: 'add', atomId: args?.atomId, text: args?.text })
+        return { receipt: '批注已加入超级创草稿。', state }
+      }
+      if (action === 'publish') {
+        const result = await desk.superDesign.publish({ ...(Number.isFinite(Number(args?.baseRevision)) ? { baseRevision: Number(args.baseRevision) } : {}) })
+        if (!result.ok) throw new Error(result.error || '发布冲突')
+        return { receipt: `已将超级创草稿发布到工作台（revision ${result.revision}）。`, state: result.super }
+      }
+      throw new Error(`不支持的 action：${action}`)
+    },
+  }
+
+  const disposers = [calendar, task, stateTool, mailTool, marketTool, inspectTool, applyTool, superTool].map(definition => ctx.get('tools').register(definition))
   return () => { for (const dispose of disposers) { try { dispose() } catch {} } }
 }
 
-export const TOOL_NAMES = ['work_desk_calendar', 'work_desk_task', 'work_desk_state', 'work_desk_mail', 'work_desk_market', 'workbench_inspect', 'workbench_apply']
+export const TOOL_NAMES = ['work_desk_calendar', 'work_desk_task', 'work_desk_state', 'work_desk_mail', 'work_desk_market', 'workbench_inspect', 'workbench_apply', 'super_design']

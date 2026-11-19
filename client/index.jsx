@@ -4,6 +4,7 @@ import { CalendarView } from './calendar.jsx'
 import { ChatDock } from './chat.jsx'
 import { loadDesk, setDesk, setRootCtx, startTicker, undo, useDesk } from './desk.js'
 import { WorkbenchView } from './fw/bench.jsx'
+import { SuperDesignView } from './fw/super.jsx'
 import { WorkbenchSettings } from './fw/settings-section.jsx'
 import fwCss from './fw/theme.css'
 import creationCss from './fw/creation.css'
@@ -150,12 +151,19 @@ export const inject = ['slots']
 export function apply(ctx) {
   setRootCtx(ctx)
   ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: PANEL_ID }, Shell))
+  ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: 'super-design' }, props => <SuperDesignView useSessions={props.useSessions} />))
   ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
     name: 'sidebar.panellist',
     id: PANEL_ID,
     order: 5,
     label: () => '办公工作台',
   }, ({ size }) => <Icon name="calendar" size={size} />))
+  ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
+    name: 'sidebar.panellist',
+    id: 'super-design',
+    order: 6,
+    label: () => '超级创',
+  }, ({ size }) => <Icon name="spark" size={size} />))
   // DSH 设置页里加一节「工作台」：主题、布局 revision、恢复默认，读写的是同一份 Host 布局
   ctx.slots.inject('settings.section', () => ctx.slots.register({
     name: 'settings.section',

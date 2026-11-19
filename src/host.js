@@ -12,6 +12,7 @@ import { mailConfigured, mailReady, Settings, publicSettings } from './settings.
 import { Store } from './store.js'
 import { SOURCES, collectSources } from './sources.js'
 import { WorkbenchStore } from './workbench.js'
+import { SuperDesignStore } from './super-design.js'
 import { createScheduler, evaluateAlerts } from './sync.js'
 import { imapConfigOf, markMail, readMail, sendNow, syncInbox, testImap } from './mail/service.js'
 import { draftVia, emailTool, foldersVia, listMail, markMailVia, probe, readMailVia } from './mail/dshmail.js'
@@ -342,6 +343,7 @@ async function route(ctx, desk, req, res) {
       const layout = await desk.workbench.read()
       return json(res, 200, layout)
     }
+    if (path === 'super') return json(res, 200, await desk.superDesign.state())
     if (path === 'sources') return json(res, 200, { sources: SOURCES })
     if (path === 'source') {
       const names = String(url.searchParams.get('names') ?? 'desk').split(',').map(name => name.trim()).filter(Boolean).slice(0, 8)
@@ -402,6 +404,16 @@ async function route(ctx, desk, req, res) {
   switch (path) {
     case 'workbench': {
       const result = await desk.workbench.apply({ ...body, source: body.source ?? 'ui' })
+      return json(res, result.ok ? 200 : 409, result)
+    }
+    case 'super/open': return json(res, 200, await desk.superDesign.open())
+    case 'super/draft': return json(res, 200, await desk.superDesign.updateDraft(body))
+    case 'super/ops': return json(res, 200, await desk.superDesign.applyOps(body.ops))
+    case 'super/comment': return json(res, 200, await desk.superDesign.comment(body))
+    case 'super/select': return json(res, 200, await desk.superDesign.select(String(body.atomId ?? '')))
+    case 'super/reset': return json(res, 200, await desk.superDesign.reset())
+    case 'super/publish': {
+      const result = await desk.superDesign.publish(body)
       return json(res, result.ok ? 200 : 409, result)
     }
     case 'ops': {
@@ -581,11 +593,13 @@ export default {
     const settings = new Settings(store.root)
     const board = new QuoteBoard()
     const workbench = new WorkbenchStore(store.root)
+    const superDesign = new SuperDesignStore(store.root, workbench)
     const desk = {
       store,
       settings,
       board,
       workbench,
+      superDesign,
     }
     desk.scheduler = createScheduler({
       store,

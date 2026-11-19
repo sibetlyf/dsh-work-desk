@@ -1,6 +1,6 @@
 {
   "name": "dsh-work-desk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "DeepSeek Harness 插件：办公工作台。日程、邮件、行情，加上一份每天早上替你读完的晨报。",
   "type": "module",
   "main": "src/host.js",

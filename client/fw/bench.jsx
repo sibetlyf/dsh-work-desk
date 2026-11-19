@@ -2,7 +2,7 @@
 // 内置原子 + FullWidget 全部原生组件 + 生成式卡片，共用同一套布局、主题与编辑操作。
 // 布局暂存本机浏览器；写入 Host、Agent 编排是后续步骤，界面上如实标注。
 import React from 'react'
-import { dispatchOps, openMail, setDesk, toast, useDesk } from '../desk.js'
+import { dispatchOps, getRootCtx, openMail, setDesk, toast, useDesk } from '../desk.js'
 import { renderAtom } from './atoms.jsx'
 import { FwWidget, fwIconUrl, sizeOfWidget, useFwWidgets } from './fwwidgets.jsx'
 import { GenuiAtom, pickSpec, sanitizeSpec, specUsable } from './genui.jsx'
@@ -385,6 +385,7 @@ export function WorkbenchView() {
           </div>
           <button type="button" className="fw-btn" aria-pressed={railOpen} onClick={() => { railTouched.current = true; setRailOpen(value => !value) }} aria-label={railOpen ? '收起会话栏' : '展开会话栏'}>会话</button>
           <button type="button" className="fw-btn" onClick={() => setPanel(panel === 'add' ? null : 'add')} aria-expanded={panel === 'add'}>＋ 添加组件</button>
+          <button type="button" className="fw-btn" onClick={() => getRootCtx()?.layout?.selectPanel('super-design')}>超级创</button>
           <button
             type="button"
             className={`fw-btn ${editing ? 'is-on' : ''}`}

@@ -68,7 +68,7 @@ export function looksActionable(text) {
   return when.test(text) && what.test(text)
 }
 
-export function SessionDock({ useSessions, head, embedded = false, onClose, onPreview, onActivity }) {
+export function SessionDock({ useSessions, head, embedded = false, onClose, onPreview, onActivity, hint }) {
   // 直接订 sessions.list 这个 SnapshotStore：用 useSessions(state => state) 会拿到
   // 每次调用都新建的对象，React 认为快照一直在变，于是无限重渲染——看起来就是"一直在刷新"。
   const listStore = React.useMemo(() => getRootCtx()?.get?.('sessions')?.list ?? null, [])
@@ -184,7 +184,7 @@ export function SessionDock({ useSessions, head, embedded = false, onClose, onPr
     setSending(true)
     if (value === undefined) setText('')
     try {
-      const content = uiMode ? text_ + UI_CREATION_HINT : text_
+      const content = uiMode ? text_ + (hint ?? UI_CREATION_HINT) : text_
       const result = await binding.session.prompt([{ type: 'text', text: content }], 'queue')
       if (result && result.ok === false) setError(result.error?.message ?? '发送失败')
     } catch (err) {
