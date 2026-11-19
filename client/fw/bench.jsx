@@ -130,6 +130,7 @@ export function WorkbenchView() {
   const [dropAt, setDropAt] = React.useState(null)
   const [now, setNow] = React.useState(() => new Date())
   const [configFor, setConfigFor] = React.useState(null)
+  const fileRef = React.useRef(null)
   const [railOpen, setRailOpen] = React.useState(true)
   const [preview, setPreview] = React.useState(null)
   const [previewSize, setPreviewSize] = React.useState('m')
@@ -407,7 +408,7 @@ export function WorkbenchView() {
               <h3>内置原子</h3>
               <div className="fw-chiprow">
                 {Object.entries(ATOMS).map(([type, meta]) => (
-                  <button key={type} type="button" className="fw-btn" title={meta.hint} onClick={() => add({ type, size: 'm' })}>{meta.label}</button>
+                  <button key={type} type="button" className="fw-btn" title={meta.hint} onClick={() => (type === 'image' ? fileRef.current?.click() : add({ type, size: 'm' }))}>{meta.label}</button>
                 ))}
               </div>
             </div>

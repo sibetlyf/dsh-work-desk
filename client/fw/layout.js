@@ -29,6 +29,7 @@ export const ATOMS = {
   alerts: { label: '提醒', hint: '条数、前两条、全部' },
   quick: { label: '快捷入口', hint: '今日、日程、邮件、行情' },
   meeting: { label: '会议助手', hint: '是否在听、采集、触发与播报计数（来自会议助手插件）' },
+  image: { label: '图片', hint: '缩略、缩略加说明、大图与来源' },
 }
 
 /** 组件可以声明订阅的数据源；Host 与客户端共用这份名字表。 */

@@ -456,7 +456,9 @@ function meeting(atom, ctx) {
   )
 }
 
-const RENDERERS = { calendar, tasks, mail, quotes, brief, alerts, clock, next, quick, meeting }
+import image from './image-atom.jsx'
+
+const RENDERERS = { calendar, tasks, mail, quotes, brief, alerts, clock, next, quick, meeting, image }
 
 /** 渲染一个原子实例。 */
 export function renderAtom(atom, ctx) {

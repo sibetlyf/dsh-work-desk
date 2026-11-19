@@ -13,7 +13,7 @@ export const SIZES = {
 export const THEMES = ['instrument', 'paper', 'type']
 const MAX_ATOMS = 24
 const FW_TYPE = /^fw:[a-z0-9-]{1,32}$/
-const BUILTIN = new Set(['calendar', 'next', 'tasks', 'mail', 'quotes', 'brief', 'clock', 'alerts', 'quick'])
+const BUILTIN = new Set(['calendar', 'next', 'tasks', 'mail', 'quotes', 'brief', 'clock', 'alerts', 'quick', 'meeting', 'image'])
 const MAX_SPEC_ITEMS = 40
 const SOURCE_NAMES = ['desk', 'quotes', 'meeting']
 

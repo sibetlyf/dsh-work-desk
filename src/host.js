@@ -11,6 +11,7 @@ import { QuoteBoard, fetchMinute, normalizeCode } from './quotes.js'
 import { mailConfigured, mailReady, Settings, publicSettings } from './settings.js'
 import { Store } from './store.js'
 import { SOURCES, collectSources } from './sources.js'
+import { AssetStore } from './assets.js'
 import { WorkbenchStore } from './workbench.js'
 import { SuperDesignStore } from './super-design.js'
 import { createScheduler, evaluateAlerts } from './sync.js'
@@ -344,6 +345,15 @@ async function route(ctx, desk, req, res) {
       return json(res, 200, layout)
     }
     if (path === 'super') return json(res, 200, await desk.superDesign.state())
+    if (path === 'assets') return json(res, 200, { assets: await desk.assets.list() })
+    if (path === 'asset') {
+      const found = await desk.assets.file(String(url.searchParams.get('id') ?? ''))
+      if (!found) return json(res, 404, { error: '资产不存在' })
+      res.statusCode = 200
+      res.setHeader('content-type', found.mime)
+      res.setHeader('cache-control', 'public, max-age=86400')
+      return res.end(found.body)
+    }
     if (path === 'sources') return json(res, 200, { sources: SOURCES })
     if (path === 'source') {
       const names = String(url.searchParams.get('names') ?? 'desk').split(',').map(name => name.trim()).filter(Boolean).slice(0, 8)
@@ -402,6 +412,14 @@ async function route(ctx, desk, req, res) {
 
   const body = await readJson(req)
   switch (path) {
+    case 'assets': {
+      try {
+        const record = await desk.assets.put({ data: body.data, mime: body.mime, name: body.name })
+        return json(res, 200, { ok: true, asset: { ...record, url: `work-desk/asset?id=${record.id}` } })
+      } catch (err) {
+        return json(res, 400, { ok: false, error: err.message })
+      }
+    }
     case 'workbench': {
       const result = await desk.workbench.apply({ ...body, source: body.source ?? 'ui' })
       return json(res, result.ok ? 200 : 409, result)
@@ -593,12 +611,14 @@ export default {
     const settings = new Settings(store.root)
     const board = new QuoteBoard()
     const workbench = new WorkbenchStore(store.root)
+    const assets = new AssetStore(store.root)
     const superDesign = new SuperDesignStore(store.root, workbench)
     const desk = {
       store,
       settings,
       board,
       workbench,
+      assets,
       superDesign,
     }
     desk.scheduler = createScheduler({
