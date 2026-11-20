@@ -344,7 +344,7 @@ async function route(ctx, desk, req, res) {
       const layout = await desk.workbench.read()
       return json(res, 200, layout)
     }
-    if (path === 'super') return json(res, 200, await desk.superDesign.state())
+    if (path === 'super' || path === 'super/open') return json(res, 200, await desk.superDesign.open())
     if (path === 'assets') return json(res, 200, { assets: await desk.assets.list() })
     if (path === 'asset') {
       const found = await desk.assets.file(String(url.searchParams.get('id') ?? ''))

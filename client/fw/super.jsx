@@ -118,7 +118,7 @@ function Comments({ state, selected, refresh }) {
   )
 }
 
-export function SuperDesignView({ useSessions }) {
+export function SuperDesignView({ useSessions, onExit }) {
   const [state, setState] = React.useState(null)
   const [error, setError] = React.useState('')
   const [preview, setPreview] = React.useState(null)
@@ -186,7 +186,7 @@ export function SuperDesignView({ useSessions }) {
       <header className="super-topbar">
         <div><span className="super-kicker">超级创模式 · Super Design</span><h1>先看，再改</h1><p>{state?.stale ? '正式工作台已变化，发布前先刷新草稿。' : '左侧是草稿，右侧是同一条 DSH 会话；确认后才发布。'}</p></div>
         <div className="super-actions">
-          <button type="button" className="fw-btn" onClick={() => getRootCtx()?.layout?.selectPanel('work-desk')}>回到工作台</button>
+          <button type="button" className="fw-btn" onClick={() => (onExit ? onExit() : getRootCtx()?.layout?.selectPanel('work-desk'))}>回到工作台</button>
           <button type="button" className="fw-btn" disabled={busy} onClick={reset}>刷新草稿</button>
           <input className="fw-input super-name" aria-label="新工作台名称" value={benchName} onChange={event => setBenchName(event.target.value)} placeholder="新工作台名称" />
           <button type="button" className="fw-btn is-on" disabled={busy || !state} onClick={confirmAsBench}>确认并创建为新工作台</button>

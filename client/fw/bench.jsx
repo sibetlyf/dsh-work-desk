@@ -10,6 +10,7 @@ import { auditView } from './grammar.js'
 import { useSources } from './sources.js'
 import { CodeFrame } from './code-frame.jsx'
 import { SessionRail } from './session-rail.jsx'
+import { SuperDesignView } from './super.jsx'
 import { ATOMS, SIZES, SOURCE_NAMES, cellCount, columnsFor, defaultLayout, isKnownType, loadLayout, newId, planLayout, sanitize, saveLayout } from './layout.js'
 
 const THEMES = [
@@ -133,6 +134,7 @@ export function WorkbenchView() {
   const [configFor, setConfigFor] = React.useState(null)
   const fileRef = React.useRef(null)
   const [railOpen, setRailOpen] = React.useState(true)
+  const [mode, setMode] = React.useState('grid')
   const [preview, setPreview] = React.useState(null)
   const [previewSize, setPreviewSize] = React.useState('m')
   const [addedPreview, setAddedPreview] = React.useState('')
@@ -167,7 +169,8 @@ export function WorkbenchView() {
     })
     observer.observe(host)
     return () => observer.disconnect()
-  }, [])
+    // 创造模式会卸载网格；回到网格后必须重新挂观察者，否则列数停在旧值
+  }, [mode])
 
   // 会话栏按窗口宽度决定（不能按格子宽度：栏一开一关会让宽度来回震荡）
   React.useEffect(() => {
@@ -374,6 +377,15 @@ export function WorkbenchView() {
     return `${widget.id} ${name} ${widget.category}`.toLowerCase().includes(query.trim().toLowerCase())
   })
 
+  // 创造工作台是工作台的一个模式，不跳转到另一个面板。
+  if (mode === 'create') {
+    return (
+      <div className="wd-page wd-bench-page">
+        <SuperDesignView onExit={() => setMode('grid')} />
+      </div>
+    )
+  }
+
   return (
     <div className="wd-page wd-bench-page">
       <div className={`fw-shell ${railOpen ? 'has-rail' : ''}`}>
@@ -389,7 +401,7 @@ export function WorkbenchView() {
           </div>
           <button type="button" className="fw-btn" aria-pressed={railOpen} onClick={() => { railTouched.current = true; setRailOpen(value => !value) }} aria-label={railOpen ? '收起会话栏' : '展开会话栏'}>会话</button>
           <button type="button" className="fw-btn" onClick={() => setPanel(panel === 'add' ? null : 'add')} aria-expanded={panel === 'add'}>＋ 添加组件</button>
-          <button type="button" className="fw-btn" onClick={() => getRootCtx()?.layout?.selectPanel('super-design')}>超级创</button>
+          <button type="button" className="fw-btn" aria-pressed={mode === 'create'} onClick={() => setMode(value => (value === 'create' ? 'grid' : 'create'))}>{mode === 'create' ? '← 回到网格' : '创造工作台'}</button>
           <button
             type="button"
             className={`fw-btn ${editing ? 'is-on' : ''}`}

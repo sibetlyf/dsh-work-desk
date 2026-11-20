@@ -150,20 +150,14 @@ export const inject = ['slots']
 
 export function apply(ctx) {
   setRootCtx(ctx)
+  // 只有一个面板：办公工作台。创造工作台是它里面的一个模式，不是第二个入口。
   ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: PANEL_ID }, Shell))
-  ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: 'super-design' }, props => <SuperDesignView useSessions={props.useSessions} />))
   ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
     name: 'sidebar.panellist',
     id: PANEL_ID,
     order: 5,
     label: () => '办公工作台',
   }, ({ size }) => <Icon name="calendar" size={size} />))
-  ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
-    name: 'sidebar.panellist',
-    id: 'super-design',
-    order: 6,
-    label: () => '超级创',
-  }, ({ size }) => <Icon name="spark" size={size} />))
   // DSH 设置页里加一节「工作台」：主题、布局 revision、恢复默认，读写的是同一份 Host 布局
   ctx.slots.inject('settings.section', () => ctx.slots.register({
     name: 'settings.section',

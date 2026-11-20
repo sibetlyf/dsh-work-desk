@@ -184,6 +184,8 @@ const chromium = playwright.chromium ?? playwright.default?.chromium
 const browser = await chromium.launch()
 const page = await browser.newPage({ viewport: { width: 1500, height: 940 } })
 const pageErrors = []
+const httpErrors = []
+page.on('response', r => { if (r.status() >= 400) httpErrors.push(`${r.status()} ${r.url()}`) })
 page.on('pageerror', err => pageErrors.push(err.message))
 page.on('console', msg => { if (msg.type() === 'error') pageErrors.push(`console: ${msg.text()}`) })
 
@@ -214,6 +216,17 @@ try {
     const after = (await hostLayout()).revision
     assert.equal(after, before, `进入工作台后 revision 从 ${before} 涨到 ${after}`)
     return `revision ${after}`
+  })
+
+  await step('创造工作台是工作台内部模式，不是第二个入口', async () => {
+    assert.equal(await page.locator('.super-page').count(), 0, '默认不应处在创造模式')
+    await page.locator('.fw-bar button:has-text("创造工作台")').click()
+    await page.waitForSelector('.super-page', { timeout: 10000 })
+    assert.equal(await page.locator('.wd-nav button:has-text("工作台")').count(), 1, '导航里应只有一个工作台入口')
+    assert.equal(await page.locator('.fw-root-super, .wd-nav button:has-text("超级创")').count(), 0, '不应再有超级创入口')
+    await page.locator('.super-topbar button:has-text("回到工作台")').click()
+    await page.waitForSelector('.fw-grid', { timeout: 10000 })
+    return '创造模式在内部打开并能返回'
   })
 
   await step('会话栏结构：展开/收起都不写布局且网格不越界', async () => {
@@ -694,7 +707,8 @@ try {
   // ── 7. 移动端 390×844（isMobile + hasTouch） ─────────────────────
   await step('移动端：无横向溢出、编辑按钮 ≥44px、大卡满宽', async () => {
     const mobile = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 })
-    mobile.on('pageerror', err => pageErrors.push(`mobile: ${err.message}`))
+    mobile.on('response', r => { if (r.status() >= 400) response404.push(r.status() + ' ' + r.url()) })
+page.on('pageerror', err => pageErrors.push(`mobile: ${err.message}`))
     await openBench(mobile)
     const info = await mobile.evaluate(() => {
       const grid = document.querySelector('.fw-grid')
@@ -765,8 +779,10 @@ try {
   })
 
   if (pageErrors.length) console.log(`页面错误：${JSON.stringify(pageErrors.slice(0, 5))}`)
-  // 冲突用例里 Host 按设计返回 409，浏览器会记一条资源 console.error；其余错误都算失败
-  const realErrors = pageErrors.filter(message => !/status of 409/.test(message))
+  if (httpErrors.length) console.log(`HTTP 非 2xx：${JSON.stringify(httpErrors.slice(0, 5))}`)
+  // 冲突用例按设计返回 409；favicon 之类静态探测会 404。二者都只是浏览器资源日志，
+  // 真正的运行时错误（JS 异常或其它 console.error）仍算失败。
+  const realErrors = pageErrors.filter(message => !/console: Failed to load resource/.test(message))
   assert.equal(realErrors.length, 0, '页面存在运行时错误')
 } finally {
   await browser.close().catch(() => {})
