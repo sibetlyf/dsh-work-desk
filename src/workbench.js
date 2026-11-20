@@ -251,7 +251,46 @@ export class WorkbenchStore {
   read() {
     return this.run(async () => {
       await this.refresh()
-      return { revision: this.data.revision, theme: this.data.theme, atoms: this.data.atoms }
+      return {
+        revision: this.data.revision,
+        theme: this.data.theme,
+        atoms: this.data.atoms,
+        activeId: this.data.activeId ?? 'default',
+        benches: (this.data.benches ?? []).map(bench => ({ id: bench.id, name: bench.name, atoms: bench.atoms?.length ?? 0 })),
+      }
+    })
+  }
+
+  /**
+   * 把一份草稿布局创立成新的工作台，并切到它；原来那份保留在 benches 里，不被覆盖。
+   */
+  createBench({ name, layout } = {}) {
+    return this.run(async () => {
+      await this.refresh()
+      const next = sanitizeWorkbench(layout)
+      if (!next) return { ok: false, error: '工作台布局不合法' }
+      const id = `bench-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
+      const bench = {
+        id,
+        name: (typeof name === 'string' && name.trim() ? name.trim() : '新工作台').slice(0, 40),
+        theme: next.theme,
+        atoms: next.atoms,
+        createdAt: new Date().toISOString(),
+      }
+      this.data.benches = [...(this.data.benches ?? []), bench].slice(-20)
+      this.data.activeId = id
+      this.data.theme = bench.theme
+      this.data.atoms = bench.atoms
+      this.data.revision += 1
+      this.data.history = [...(this.data.history ?? []), { at: bench.createdAt, applied: [`创建新工作台 ${bench.name}`], source: 'canvas' }].slice(-20)
+      await this.persist()
+      return {
+        ok: true,
+        revision: this.data.revision,
+        bench: { id: bench.id, name: bench.name },
+        layout: { theme: this.data.theme, atoms: this.data.atoms },
+        benches: (this.data.benches ?? []).map(row => ({ id: row.id, name: row.name, atoms: row.atoms?.length ?? 0 })),
+      }
     })
   }
 

@@ -420,6 +420,7 @@ async function route(ctx, desk, req, res) {
         return json(res, 400, { ok: false, error: err.message })
       }
     }
+    case 'workbench/bench': return json(res, 200, await desk.workbench.createBench({ name: body.name, layout: body.layout }))
     case 'workbench': {
       const result = await desk.workbench.apply({ ...body, source: body.source ?? 'ui' })
       return json(res, result.ok ? 200 : 409, result)

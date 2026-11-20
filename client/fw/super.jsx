@@ -123,6 +123,8 @@ export function SuperDesignView({ useSessions }) {
   const [error, setError] = React.useState('')
   const [preview, setPreview] = React.useState(null)
   const [busy, setBusy] = React.useState(false)
+  const [benchName, setBenchName] = React.useState('')
+  const [zoom, setZoom] = React.useState(1)
 
   const refresh = React.useCallback(async () => {
     try { setState(await call('super')); setError('') } catch (reason) { setError(reason.message) }
@@ -162,6 +164,17 @@ export function SuperDesignView({ useSessions }) {
       toast(`已发布 ${result.applied?.join('、') ?? '工作台草稿'}。`)
     } catch (reason) { toast(reason.message, { error: true }) } finally { setBusy(false) }
   }
+  const confirmAsBench = async () => {
+    if (!state) return
+    setBusy(true)
+    try {
+      const result = await call('super/publish', { mode: 'new', name: benchName.trim() || `工作台 ${new Date().toLocaleDateString('zh-CN')}` })
+      if (!result.ok) { toast(result.error ?? '创建失败', { error: true }); return }
+      setState(result.super)
+      toast(`已创建新工作台「${result.bench?.name ?? '新工作台'}」，原来的工作台保留。`)
+      setBenchName('')
+    } catch (reason) { toast(reason.message, { error: true }) } finally { setBusy(false) }
+  }
   const reset = async () => {
     if (!window.confirm('用当前正式工作台覆盖草稿？未发布的修改会丢失。')) return
     try { setState(await call('super/reset')) ; setPreview(null) } catch (reason) { toast(reason.message, { error: true }) }
@@ -175,7 +188,9 @@ export function SuperDesignView({ useSessions }) {
         <div className="super-actions">
           <button type="button" className="fw-btn" onClick={() => getRootCtx()?.layout?.selectPanel('work-desk')}>回到工作台</button>
           <button type="button" className="fw-btn" disabled={busy} onClick={reset}>刷新草稿</button>
-          <button type="button" className="fw-btn" disabled={busy} onClick={publish}>发布到工作台</button>
+          <input className="fw-input super-name" aria-label="新工作台名称" value={benchName} onChange={event => setBenchName(event.target.value)} placeholder="新工作台名称" />
+          <button type="button" className="fw-btn is-on" disabled={busy || !state} onClick={confirmAsBench}>确认并创建为新工作台</button>
+          <button type="button" className="fw-btn" disabled={busy} onClick={publish}>覆盖当前工作台</button>
         </div>
       </header>
       <div className="super-body">

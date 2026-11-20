@@ -163,6 +163,16 @@ export class SuperDesignStore {
 
   async publish(input = {}) {
     const data = await this.load()
+    // 画布确认后默认「创立为新工作台」：不覆盖现有工作台，name 来自输入框。
+    if (input.mode === 'new') {
+      const created = await this.workbench.createBench({ name: input.name, layout: data.draft })
+      if (!created.ok) return created
+      data.baseRevision = created.revision
+      data.revision += 1
+      data.updatedAt = Date.now()
+      await this.flush()
+      return { ...created, super: await this.state() }
+    }
     const baseRevision = Number.isInteger(input.baseRevision) ? input.baseRevision : data.baseRevision
     const result = await this.workbench.apply({
       ops: [{ op: 'replace', layout: data.draft }],
