@@ -497,8 +497,41 @@ export function registerTools(ctx, desk) {
     },
   }
 
-  const disposers = [calendar, task, stateTool, mailTool, marketTool, inspectTool, applyTool, superTool].map(definition => ctx.get('tools').register(definition))
+  const createTool = {
+    name: 'workbench_create',
+    description: 'Create a NEW named workbench from a layout draft and switch to it. The existing workbench is kept. Use after the user confirms the design; do not overwrite with workbench_apply unless they asked for that.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Name shown for the new workbench, e.g. 周复盘 or 会议驾驶舱.' },
+        layout: {
+          type: 'object',
+          description: 'Workbench layout: {"theme":"instrument|paper|type","atoms":[{"id":"cal","type":"calendar","size":"l"},{"type":"genui","size":"m","spec":{"title":"…","items":[…]}},{"type":"code","size":"m","config":{"code":"(props)=>…","title":"…"},"sources":["desk"]}]}. Sizes: s=1x1, m=2x1, l=4x3, 8 columns.',
+          additionalProperties: true,
+        },
+      },
+      required: ['name', 'layout'],
+      additionalProperties: false,
+    },
+    output: {
+      schema: { type: 'object', properties: { receipt: { type: 'string' }, revision: { type: 'number' }, bench: { type: 'object', additionalProperties: true } }, additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: value?.receipt ?? '完成' }],
+    },
+    async execute(args) {
+      const result = await desk.workbench.createBench({ name: args?.name, layout: args?.layout })
+      if (!result.ok) throw new Error(result.error || '创建工作台失败')
+      const lines = result.layout.atoms.map(atom => `- ${atom.id}｜${atom.type}｜${atom.size}`)
+      return {
+        receipt: `已创建新工作台「${result.bench.name}」（revision ${result.revision}），原来的工作台保留。\n${lines.join('\n')}`,
+        revision: result.revision,
+        bench: result.bench,
+        atoms: result.layout.atoms,
+      }
+    },
+  }
+
+  const disposers = [calendar, task, stateTool, mailTool, marketTool, inspectTool, applyTool, createTool, superTool].map(definition => ctx.get('tools').register(definition))
   return () => { for (const dispose of disposers) { try { dispose() } catch {} } }
 }
 
-export const TOOL_NAMES = ['work_desk_calendar', 'work_desk_task', 'work_desk_state', 'work_desk_mail', 'work_desk_market', 'workbench_inspect', 'workbench_apply', 'super_design']
+export const TOOL_NAMES = ['work_desk_calendar', 'work_desk_task', 'work_desk_state', 'work_desk_mail', 'work_desk_market', 'workbench_inspect', 'workbench_apply', 'workbench_create', 'super_design']

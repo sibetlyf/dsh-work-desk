@@ -643,6 +643,26 @@ export default {
     }, 'dsh-work-desk: mail autodetect')
     // 把工作台注册成宿主工具：DSH 对话里的 Agent 可以直接加日程、记待办、读状态
     ctx.effect(() => registerTools(ctx, desk), 'dsh-work-desk: agent tools')
+    // 设计模式的行为不靠「选中某个 preset」才生效：任何会话都拿到同一份说明，
+    // 标准模式里说「设计一个漂亮的工作台」也能落到 workbench_ui / workbench_create。
+    ctx.effect(() => {
+      const prompts = ctx.get('systemPrompt')
+      if (!prompts?.section) return () => {}
+      const dispose = prompts.section({
+        name: 'work-desk-design',
+        order: 620,
+        text: [
+          '办公工作台可以按需求现场生成：用户说要设计/改工作台时，走下面的流程，不要只描述。',
+          '1. 先定这张卡片回答什么问题、需要哪几路数据（desk / quotes / meeting），含糊时最多问 3 个关键决策。',
+          '2. 输出 ```workbench-ui 纯 JSON（title + items，或 views{s,m,l}）；节点只允许 text、stat、badge、progress、list、keyvalue、steps、callout、chart、divider。实时数据写占位符 {{desk.openTasks}} 这类。',
+          '3. 需要自定义呈现时，输出 ```workbench-widget：{"manifest":{"id","title","size","sources"},"code":"(props)=>\\"<div>…</div>\\""}；代码在沙箱里跑，禁止 fetch/require/import/eval。',
+          '4. 空间语法：一个卡片只回答一个问题，主读数唯一；小卡 2 块、中卡 4 块、大卡 7 块；小卡不放图表与 steps。',
+          '5. 用户确认后调 workbench_create 建一个新工作台（原来的保留），或 workbench_apply 改当前布局；不要擅自覆盖。',
+          '6. 会话是记录：说明改了什么、为什么。',
+        ].join('\n'),
+      })
+      return dispose
+    }, 'dsh-work-desk: design prompt')
     ctx.effect(() => {
       desk.scheduler.start().catch(() => {})
       return () => desk.scheduler.stop()
