@@ -4,6 +4,7 @@ import React from 'react'
 import { getRootCtx, setDesk } from './desk.js'
 import { Icon, IconButton } from './ui.jsx'
 import { previewFromText, UI_CREATION_HINT } from './fw/ui-preview.js'
+import { parseCodeWidget } from './fw/code-widget.js'
 
 const EMPTY_SNAPSHOT = { running: false, openState: 'cold' }
 const EMPTY_LIST = { ids: [], byId: {}, phase: 'empty', projectionsBySession: {} }
@@ -168,9 +169,11 @@ export function SessionDock({ useSessions, head, embedded = false, onClose, onPr
   }, [entries])
 
   React.useEffect(() => {
-    const recent = [...messages].reverse().find(message => message.role === 'assistant' && previewFromText(message.text))
-    const candidate = previewFromText(liveText) ?? (recent ? previewFromText(recent.text) : null)
-    previewRef.current?.(candidate ? { ...candidate, sessionId } : null)
+    const recent = [...messages].reverse().find(message => message.role === 'assistant' && (previewFromText(message.text) || parseCodeWidget(message.text)))
+    const specCandidate = previewFromText(liveText) ?? (recent ? previewFromText(recent.text) : null)
+    const codeCandidate = parseCodeWidget(liveText) ?? (recent ? parseCodeWidget(recent.text) : null)
+    const candidate = codeCandidate ? { code: codeCandidate, sessionId } : specCandidate ? { ...specCandidate, sessionId } : null
+    previewRef.current?.(candidate)
   }, [liveText, messages, sessionId])
   React.useEffect(() => { activityRef.current?.({ running: !!snapshot?.running, sessionId, send: value => deliver(value), comment: value => deliver(value + UI_CREATION_HINT) }) }, [snapshot?.running, sessionId, binding])
 

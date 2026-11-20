@@ -8,6 +8,7 @@ import { FwWidget, fwIconUrl, sizeOfWidget, useFwWidgets } from './fwwidgets.jsx
 import { GenuiAtom, pickSpec, sanitizeSpec, specUsable } from './genui.jsx'
 import { auditView } from './grammar.js'
 import { useSources } from './sources.js'
+import { CodeFrame } from './code-frame.jsx'
 import { SessionRail } from './session-rail.jsx'
 import { ATOMS, SIZES, SOURCE_NAMES, cellCount, columnsFor, defaultLayout, isKnownType, loadLayout, newId, planLayout, sanitize, saveLayout } from './layout.js'
 
@@ -550,8 +551,9 @@ export function WorkbenchView() {
         ) : null}
       </div>
         {preview ? (() => {
-          const audit = auditView(pickSpec(preview.spec, previewSize), previewSize)
-          const busy = !preview.complete || audit.blocked || addedPreview === JSON.stringify(preview.spec)
+          const codeSpec = preview.code ?? null
+          const audit = codeSpec ? { score: 100, issues: [], blocked: false } : auditView(pickSpec(preview.spec, previewSize), previewSize)
+          const busy = (!preview.complete && !codeSpec) || audit.blocked || addedPreview === JSON.stringify(preview.spec ?? preview.code)
           return (
             <aside className="fw-canvas" aria-label="设计画布">
               <header className="fw-canvas-head">
@@ -572,9 +574,18 @@ export function WorkbenchView() {
               <button type="button" className="fw-btn is-on" disabled={busy} onClick={() => {
                 if (layout.atoms.length >= 24) { toast('最多 24 个组件位', { error: true }); return }
                 if (audit.blocked) { toast(audit.issues[0] ?? '规格不符合空间语法', { error: true }); return }
-                add({ type: 'genui', size: previewSize, spec: preview.spec })
-                setAddedPreview(JSON.stringify(preview.spec))
-              }}>{addedPreview === JSON.stringify(preview.spec) ? '已加入组件' : '＋ 加入组件'}</button>
+                if (codeSpec) {
+                  add({
+                    type: 'code',
+                    size: codeSpec.manifest?.size ?? previewSize,
+                    config: { code: codeSpec.code, title: codeSpec.manifest?.title ?? '代码组件' },
+                    ...(codeSpec.manifest?.sources?.length ? { sources: codeSpec.manifest.sources } : {}),
+                  })
+                } else {
+                  add({ type: 'genui', size: previewSize, spec: preview.spec })
+                }
+                setAddedPreview(JSON.stringify(preview.spec ?? preview.code))
+              }}>{addedPreview === JSON.stringify(preview.spec ?? preview.code) ? '已加入组件' : '＋ 加入组件'}</button>
               {!preview.complete ? <small className="fw-canvas-note">已解析的内容会逐步出现；规格完整后才能加入。</small> : null}
               <form className="fw-canvas-comment" onSubmit={event => {
                 event.preventDefault()

@@ -30,6 +30,7 @@ export const ATOMS = {
   quick: { label: '快捷入口', hint: '今日、日程、邮件、行情' },
   meeting: { label: '会议助手', hint: '是否在听、采集、触发与播报计数（来自会议助手插件）' },
   image: { label: '图片', hint: '缩略、缩略加说明、大图与来源' },
+  code: { label: '代码组件', hint: 'Agent 生成的沙箱渲染组件' },
 }
 
 /** 组件可以声明订阅的数据源；Host 与客户端共用这份名字表。 */
@@ -102,7 +103,7 @@ export function genuiSpecUsable(spec) {
 
 /** 哪些类型算合法组件：内置九种、FullWidget 原生组件、生成式卡片。 */
 export function isKnownType(type) {
-  return typeof type === 'string' && (BUILTIN.has(type) || type === 'genui' || FW_TYPE.test(type))
+  return typeof type === 'string' && (BUILTIN.has(type) || type === 'genui' || type === 'code' || FW_TYPE.test(type))
 }
 
 /** 读回布局；任何不合法的字段都退回默认，不信任 localStorage 内容。 */

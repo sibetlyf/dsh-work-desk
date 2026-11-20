@@ -457,8 +457,15 @@ function meeting(atom, ctx) {
 }
 
 import image from './image-atom.jsx'
+import { CodeFrame } from './code-frame.jsx'
 
-const RENDERERS = { calendar, tasks, mail, quotes, brief, alerts, clock, next, quick, meeting, image }
+function codeAtom(atom, ctx) {
+  const config = atom.config ?? {}
+  if (!config.code) return <p className="fw-empty">这个代码组件还没有内容。</p>
+  return <CodeFrame code={config.code} data={ctx.sources} theme={ctx.theme ?? 'instrument'} title={config.title ?? '代码组件'} />
+}
+
+const RENDERERS = { calendar, tasks, mail, quotes, brief, alerts, clock, next, quick, meeting, image, code: codeAtom }
 
 /** 渲染一个原子实例。 */
 export function renderAtom(atom, ctx) {
